@@ -1,0 +1,59 @@
+import React from 'react';
+import { TankMixProduct } from '../../types';
+import { LoadInfo } from '../../hooks/useLoadSplitter';
+
+interface LoadScheduleTableProps {
+  loads: LoadInfo[];
+  selectedProducts: TankMixProduct[];
+}
+
+const LoadScheduleTable: React.FC<LoadScheduleTableProps> = ({ loads, selectedProducts }) => {
+  if (loads.length === 0 || selectedProducts.length === 0) return null;
+
+  return (
+    <div className="card overflow-x-auto">
+      <h2 className="text-lg font-semibold mb-4">Load Schedule</h2>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-gray-200">
+            <th className="text-left py-2 pr-4 font-medium text-gray-600">Load</th>
+            <th className="text-right py-2 px-4 font-medium text-gray-600">Volume</th>
+            {selectedProducts.map((item) => (
+              <th key={item.product.id} className="text-right py-2 px-4 font-medium text-gray-600">
+                {item.product.name}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {loads.map((load) => (
+            <tr key={load.loadNumber} className="border-b border-gray-100">
+              <td className="py-2 pr-4 font-medium">#{load.loadNumber}</td>
+              <td className="text-right py-2 px-4">{Math.round(load.volume)} gal</td>
+              {load.products.map((lp) => (
+                <td key={lp.product.product.id} className="text-right py-2 px-4">
+                  {lp.amount.toFixed(2)} {lp.displayUnit}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr className="border-t-2 border-gray-300 font-semibold">
+            <td className="py-2 pr-4">Total</td>
+            <td className="text-right py-2 px-4">
+              {Math.round(loads.reduce((s, l) => s + l.volume, 0))} gal
+            </td>
+            {selectedProducts.map((item) => (
+              <td key={item.product.id} className="text-right py-2 px-4">
+                {item.totalAmount.toFixed(2)} {item.product.type === 'liquid' ? 'gal' : 'lbs'}
+              </td>
+            ))}
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  );
+};
+
+export default LoadScheduleTable;
