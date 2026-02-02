@@ -58,11 +58,26 @@ export interface DriftAssessment {
   bufferZoneMultiplier: number;
 }
 
+export function getCurrentPosition(): Promise<{ latitude: number; longitude: number } | null> {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) {
+      resolve(null);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+      () => resolve(null),
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
+    );
+  });
+}
+
 export class WeatherService {
 
-  static async getCurrentWeather(): Promise<WeatherData> {
+  static async getCurrentWeather(coords?: { latitude: number; longitude: number }): Promise<WeatherData> {
     try {
-      const response = await fetch('/api/weather/current');
+      const loc = coords || LocationWeatherService.getFarmLocation();
+      const response = await fetch(`/api/weather/location?lat=${loc.latitude}&lon=${loc.longitude}`);
       const data = await response.json();
       return this.enhanceWeatherData(data);
     } catch (error) {
@@ -466,10 +481,6 @@ export class LocationWeatherService {
       riskScore += 1;
     }
 
-    if (this.isNearGreatLakes(location)) {
-      riskScore += 1;
-    }
-
     if (riskScore >= 9) return 'extreme';
     if (riskScore >= 6) return 'high';
     if (riskScore >= 3) return 'moderate';
@@ -509,10 +520,6 @@ export class LocationWeatherService {
     }
 
     return 'optimal';
-  }
-
-  private static isNearGreatLakes(location: LocationData): boolean {
-    return location.latitude > 40.5;
   }
 
   private static getElevationForLocation(location: LocationData): number {

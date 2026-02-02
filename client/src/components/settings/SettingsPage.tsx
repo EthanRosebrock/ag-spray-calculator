@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Product } from '../../types';
 import { ContainerType } from '../../utils/containerCalculations';
-import { LocationWeatherService, LocationData, FieldLocation } from '../../utils/weatherService';
+import { LocationWeatherService, LocationData, FieldLocation, getCurrentPosition } from '../../utils/weatherService';
 import {
   getProducts,
   deleteProduct,
@@ -60,6 +60,19 @@ const LocationTab: React.FC = () => {
   const [fieldLocations, setFieldLocations] = useState<FieldLocation[]>([]);
   const [showAddField, setShowAddField] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [geoStatus, setGeoStatus] = useState<'idle' | 'locating' | 'error'>('idle');
+
+  const useCurrentLocation = async () => {
+    setGeoStatus('locating');
+    const pos = await getCurrentPosition();
+    if (pos) {
+      setFarmLocation((prev) => ({ ...prev, latitude: +pos.latitude.toFixed(4), longitude: +pos.longitude.toFixed(4) }));
+      setGeoStatus('idle');
+    } else {
+      setGeoStatus('error');
+      setTimeout(() => setGeoStatus('idle'), 3000);
+    }
+  };
 
   useEffect(() => {
     setFieldLocations(LocationWeatherService.getFieldLocations());
@@ -129,7 +142,17 @@ const LocationTab: React.FC = () => {
           <button onClick={updateFarmLocation} className="btn-primary">
             Update Farm Location
           </button>
+          <button
+            onClick={useCurrentLocation}
+            disabled={geoStatus === 'locating'}
+            className="btn-secondary text-sm py-2 px-4"
+          >
+            {geoStatus === 'locating' ? 'Locating...' : 'Use Current Location'}
+          </button>
           {saved && <span className="text-sm text-green-600">Saved!</span>}
+          {geoStatus === 'error' && (
+            <span className="text-sm text-red-600">Location access denied or unavailable</span>
+          )}
         </div>
       </div>
 

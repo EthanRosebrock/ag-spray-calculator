@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useWeather } from '../../hooks/useWeather';
 
 const WeatherWidget: React.FC = () => {
-  const { weather, driftAssessment, loading, autoRefresh, setAutoRefresh, loadWeather, isGo } =
+  const { weather, driftAssessment, loading, autoRefresh, setAutoRefresh, loadWeather, isGo, locationSource } =
     useWeather();
   const [open, setOpen] = useState(false);
 
@@ -125,6 +125,11 @@ const WeatherWidget: React.FC = () => {
                     </div>
                     <div className="text-xs mt-1 opacity-75">
                       {new Date(weather.timestamp).toLocaleTimeString()}
+                    </div>
+                    <div className="text-xs mt-0.5 opacity-60">
+                      {locationSource === 'gps'
+                        ? 'GPS location'
+                        : `Farm location (${weather.location?.city || 'Default'})`}
                     </div>
                   </div>
                 </div>
