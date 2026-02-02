@@ -55,7 +55,6 @@ export interface DriftAssessment {
     inversion: { score: number; impact: string };
   };
   recommendations: string[];
-  bufferZoneMultiplier: number;
 }
 
 export function getCurrentPosition(): Promise<{ latitude: number; longitude: number } | null> {
@@ -200,11 +199,9 @@ export class WeatherService {
         inversion: this.assessInversionFactor(weather.temperatureInversion)
       },
       recommendations: [],
-      bufferZoneMultiplier: 1
     };
 
     assessment.recommendations = this.generateRecommendations(assessment.factors, weather);
-    assessment.bufferZoneMultiplier = this.calculateBufferMultiplier(assessment.overall);
 
     return assessment;
   }
@@ -279,14 +276,6 @@ export class WeatherService {
     return recommendations;
   }
 
-  private static calculateBufferMultiplier(riskLevel: string): number {
-    switch (riskLevel) {
-      case 'extreme': return 3;
-      case 'high': return 2;
-      case 'moderate': return 1.5;
-      default: return 1;
-    }
-  }
 }
 
 export class LocationWeatherService {

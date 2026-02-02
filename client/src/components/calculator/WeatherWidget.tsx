@@ -201,11 +201,13 @@ const WeatherWidget: React.FC = () => {
                       </div>
                     ))}
                   </div>
-                  <div className="mt-4 pt-4 border-t border-gray-200 flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Buffer Zone Multiplier</span>
-                    <span className="font-semibold text-lg">
-                      {driftAssessment.bufferZoneMultiplier}x
-                    </span>
+                  <div className="mt-4 pt-4 border-t border-gray-200">
+                    <span className="text-sm text-gray-600">Weather Source</span>
+                    <div className="text-sm font-medium mt-1">{weather.source}</div>
+                    <div className="text-xs text-gray-500">
+                      {weather.location?.latitude.toFixed(4)}, {weather.location?.longitude.toFixed(4)}
+                      {weather.location?.city && ` — ${weather.location.city}, ${weather.location.state}`}
+                    </div>
                   </div>
                 </div>
 
