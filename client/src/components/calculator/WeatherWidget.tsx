@@ -204,10 +204,18 @@ const WeatherWidget: React.FC = () => {
                   <div className="mt-4 pt-4 border-t border-gray-200">
                     <span className="text-sm text-gray-600">Weather Source</span>
                     <div className="text-sm font-medium mt-1">{weather.source}</div>
-                    <div className="text-xs text-gray-500">
-                      {weather.location?.latitude.toFixed(4)}, {weather.location?.longitude.toFixed(4)}
-                      {weather.location?.city && ` — ${weather.location.city}, ${weather.location.state}`}
-                    </div>
+                    {weather.stationName && (
+                      <div className="text-xs text-gray-600">{weather.stationName}</div>
+                    )}
+                    {weather.stationId && (
+                      <div className="text-xs text-gray-400 font-mono">{weather.stationId}</div>
+                    )}
+                    {!weather.stationName && !weather.stationId && (
+                      <div className="text-xs text-gray-500">
+                        {weather.location?.latitude.toFixed(4)}, {weather.location?.longitude.toFixed(4)}
+                        {weather.location?.city && ` — ${weather.location.city}, ${weather.location.state}`}
+                      </div>
+                    )}
                   </div>
                 </div>
 

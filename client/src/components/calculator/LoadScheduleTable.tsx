@@ -1,6 +1,7 @@
 import React from 'react';
 import { TankMixProduct } from '../../types';
 import { LoadInfo } from '../../hooks/useLoadSplitter';
+import { getBaseDisplayUnit } from '../../utils/unitConstants';
 
 interface LoadScheduleTableProps {
   loads: LoadInfo[];
@@ -46,7 +47,7 @@ const LoadScheduleTable: React.FC<LoadScheduleTableProps> = ({ loads, selectedPr
             </td>
             {selectedProducts.map((item) => (
               <td key={item.product.id} className="text-right py-2 px-4">
-                {item.totalAmount.toFixed(2)} {item.product.type === 'liquid' ? 'gal' : 'lbs'}
+                {item.totalAmount.toFixed(2)} {getBaseDisplayUnit(item.product.measurementUnit)}
               </td>
             ))}
           </tr>

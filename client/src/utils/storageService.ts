@@ -1,5 +1,6 @@
-import { Product, Field, CalculatorDefaults } from '../types';
+import { Product, Field, CalculatorDefaults, SprayRecord, TenderRoute } from '../types';
 import { ContainerType, DEFAULT_CONTAINERS } from './containerCalculations';
+import { parseLegacyUnit, formatUnitDisplay } from './unitConstants';
 
 // --- Storage keys ---
 const KEYS = {
@@ -7,10 +8,17 @@ const KEYS = {
   containers: 'agrispray_containers',
   fields: 'agrispray_fields',
   calculatorDefaults: 'agrispray_calculator_defaults',
+  storageVersion: 'agrispray_storage_version',
+  tankPresets: 'agrispray_tank_presets',
+  carrierPresets: 'agrispray_carrier_presets',
+  records: 'agrispray_records',
+  routes: 'agrispray_routes',
   // backward-compatible keys
   farmLocation: 'farmLocation',
   fieldLocations: 'fieldLocations',
 };
+
+const CURRENT_STORAGE_VERSION = 2;
 
 // --- Default products (matches server.js /api/products) ---
 export const DEFAULT_PRODUCTS: Product[] = [
@@ -18,31 +26,37 @@ export const DEFAULT_PRODUCTS: Product[] = [
     id: 'default-roundup',
     name: 'Roundup PowerMAX',
     type: 'liquid',
-    unit: 'oz/acre',
+    unit: 'fl oz / acre',
     defaultRate: 32,
     mixingOrder: 2,
     pHSensitive: false,
     isCustom: false,
+    measurementUnit: 'fl_oz',
+    rateBasis: 'per_acre',
   },
   {
     id: 'default-atrazine',
     name: 'Atrazine 4L',
     type: 'liquid',
-    unit: 'qt/acre',
+    unit: 'qt / acre',
     defaultRate: 1.5,
     mixingOrder: 3,
     pHSensitive: false,
     isCustom: false,
+    measurementUnit: 'qt',
+    rateBasis: 'per_acre',
   },
   {
     id: 'default-ams',
     name: 'AMS',
     type: 'dry',
-    unit: 'lbs/acre',
+    unit: 'lbs / 100 gal water',
     defaultRate: 17,
     mixingOrder: 1,
     pHSensitive: false,
     isCustom: false,
+    measurementUnit: 'lbs',
+    rateBasis: 'per_100_gal',
   },
 ];
 
@@ -59,6 +73,32 @@ function loadJSON<T>(key: string): T | null {
 function saveJSON<T>(key: string, data: T): void {
   localStorage.setItem(key, JSON.stringify(data));
 }
+
+// --- Migration ---
+function migrateProducts(): void {
+  const version = loadJSON<number>(KEYS.storageVersion) ?? 1;
+  if (version >= CURRENT_STORAGE_VERSION) return;
+
+  const stored = loadJSON<Product[]>(KEYS.products);
+  if (stored) {
+    const migrated = stored.map((p) => {
+      if (p.measurementUnit && p.rateBasis) return p; // already migrated
+      const parsed = parseLegacyUnit(p.unit);
+      return {
+        ...p,
+        measurementUnit: parsed.measurementUnit,
+        rateBasis: parsed.rateBasis,
+        unit: formatUnitDisplay(parsed.measurementUnit, parsed.rateBasis),
+      };
+    });
+    saveJSON(KEYS.products, migrated);
+  }
+
+  saveJSON(KEYS.storageVersion, CURRENT_STORAGE_VERSION);
+}
+
+// Run migration on module load
+migrateProducts();
 
 // --- Products ---
 export function getProducts(): Product[] {
@@ -163,4 +203,74 @@ export function getCalculatorDefaults(): CalculatorDefaults {
 export function saveCalculatorDefaults(defaults: Partial<CalculatorDefaults>): void {
   const current = getCalculatorDefaults();
   saveJSON(KEYS.calculatorDefaults, { ...current, ...defaults });
+}
+
+// --- Tank Size Presets ---
+const DEFAULT_TANK_PRESETS = [200, 300, 500, 750, 1000];
+
+export function getTankPresets(): number[] {
+  const stored = loadJSON<number[]>(KEYS.tankPresets);
+  if (stored) return stored;
+  saveJSON(KEYS.tankPresets, DEFAULT_TANK_PRESETS);
+  return DEFAULT_TANK_PRESETS;
+}
+
+export function saveTankPresets(presets: number[]): void {
+  saveJSON(KEYS.tankPresets, presets);
+}
+
+// --- Carrier Rate Presets ---
+const DEFAULT_CARRIER_PRESETS = [10, 15, 20, 25];
+
+export function getCarrierPresets(): number[] {
+  const stored = loadJSON<number[]>(KEYS.carrierPresets);
+  if (stored) return stored;
+  saveJSON(KEYS.carrierPresets, DEFAULT_CARRIER_PRESETS);
+  return DEFAULT_CARRIER_PRESETS;
+}
+
+export function saveCarrierPresets(presets: number[]): void {
+  saveJSON(KEYS.carrierPresets, presets);
+}
+
+// --- Spray Records ---
+export function getRecords(): SprayRecord[] {
+  return loadJSON<SprayRecord[]>(KEYS.records) || [];
+}
+
+export function saveRecord(record: SprayRecord): void {
+  const records = getRecords();
+  const idx = records.findIndex((r) => r.id === record.id);
+  if (idx >= 0) {
+    records[idx] = record;
+  } else {
+    records.push(record);
+  }
+  saveJSON(KEYS.records, records);
+}
+
+export function deleteRecord(id: string): void {
+  const records = getRecords().filter((r) => r.id !== id);
+  saveJSON(KEYS.records, records);
+}
+
+// --- Tender Routes ---
+export function getRoutes(): TenderRoute[] {
+  return loadJSON<TenderRoute[]>(KEYS.routes) || [];
+}
+
+export function saveRoute(route: TenderRoute): void {
+  const routes = getRoutes();
+  const idx = routes.findIndex((r) => r.id === route.id);
+  if (idx >= 0) {
+    routes[idx] = route;
+  } else {
+    routes.push(route);
+  }
+  saveJSON(KEYS.routes, routes);
+}
+
+export function deleteRoute(id: string): void {
+  const routes = getRoutes().filter((r) => r.id !== id);
+  saveJSON(KEYS.routes, routes);
 }

@@ -19,7 +19,7 @@ app.get('/api/weather/current', async (req, res) => {
   res.redirect(`/api/weather/location?lat=${lat}&lon=${lon}`);
 });
 
-// Location-based weather endpoint — calls Open-Meteo for real data
+// Location-based weather endpoint — 3-tier waterfall: WU PWS → NWS → Open-Meteo
 app.get('/api/weather/location', async (req, res) => {
   try {
     const { lat, lon } = req.query;
@@ -31,6 +31,107 @@ app.get('/api/weather/location', async (req, res) => {
     const latitude = parseFloat(lat);
     const longitude = parseFloat(lon);
 
+    // --- Tier 1: Weather Underground PWS ---
+    if (process.env.WU_API_KEY) {
+      try {
+        const nearbyUrl = `https://api.weather.com/v3/location/near`
+          + `?geocode=${latitude},${longitude}&product=pws&format=json`
+          + `&apiKey=${process.env.WU_API_KEY}`;
+        const nearbyRes = await axios.get(nearbyUrl, { timeout: 5000 });
+        const stationId = nearbyRes.data?.location?.stationId?.[0];
+
+        if (stationId) {
+          const obsUrl = `https://api.weather.com/v2/pws/observations/current`
+            + `?stationId=${stationId}&format=json&units=e`
+            + `&apiKey=${process.env.WU_API_KEY}`;
+          const obsRes = await axios.get(obsUrl, { timeout: 5000 });
+          const obs = obsRes.data?.observations?.[0];
+
+          if (obs && obs.imperial.temp != null && obs.imperial.temp > -80 && obs.humidity != null) {
+            const weather = {
+              temperature: obs.imperial.temp,
+              humidity: obs.humidity,
+              windSpeed: obs.imperial.windSpeed,
+              windGust: obs.imperial.windGust || undefined,
+              windDirection: degreesToCompass(obs.winddir),
+              pressure: obs.imperial.pressure,
+              dewPoint: obs.imperial.dewpt,
+              timestamp: new Date().toISOString(),
+              elevation: obs.imperial.elev != null ? obs.imperial.elev : undefined,
+              source: 'Weather Underground PWS',
+              stationName: obs.neighborhood || undefined,
+              stationId: obs.stationID || undefined,
+            };
+            console.log(`Weather served from WU PWS: ${weather.stationId}`);
+            return res.json(weather);
+          }
+        }
+        console.warn('WU PWS: no nearby station or empty obs, falling through to NWS');
+      } catch (wuErr) {
+        console.warn('WU PWS failed, falling through to NWS:', wuErr.message);
+      }
+    }
+
+    // --- Tier 2: NWS API ---
+    try {
+      const nwsHeaders = { 'User-Agent': 'ag-spray-calculator, contact@example.com' };
+
+      const pointRes = await axios.get(
+        `https://api.weather.gov/points/${latitude},${longitude}`,
+        { timeout: 5000, headers: nwsHeaders }
+      );
+      const stationsUrl = pointRes.data?.properties?.observationStations;
+
+      if (stationsUrl) {
+        const stationsRes = await axios.get(stationsUrl, { timeout: 5000, headers: nwsHeaders });
+        const firstStation = stationsRes.data?.features?.[0];
+        const nwsStationId = firstStation?.properties?.stationIdentifier;
+        const nwsStationName = firstStation?.properties?.name;
+        const nwsElevation = firstStation?.properties?.elevation?.value; // meters
+
+        if (nwsStationId) {
+          const obsRes = await axios.get(
+            `https://api.weather.gov/stations/${nwsStationId}/observations/latest`,
+            { timeout: 5000, headers: nwsHeaders }
+          );
+          const props = obsRes.data?.properties;
+
+          if (props) {
+            const toF = (c) => c != null ? +(c * 9 / 5 + 32).toFixed(1) : null;
+            const kphToMph = (k) => k != null ? +(k * 0.621371).toFixed(1) : null;
+            const paToInHg = (p) => p != null ? +(p / 3386.39).toFixed(2) : null;
+
+            const weather = {
+              temperature: toF(props.temperature?.value),
+              humidity: props.relativeHumidity?.value != null
+                ? +props.relativeHumidity.value.toFixed(0)
+                : undefined,
+              windSpeed: kphToMph(props.windSpeed?.value) || 0,
+              windGust: kphToMph(props.windGust?.value) || undefined,
+              windDirection: props.windDirection?.value != null
+                ? degreesToCompass(props.windDirection.value)
+                : 'N/A',
+              pressure: paToInHg(props.barometricPressure?.value) || undefined,
+              dewPoint: toF(props.dewpoint?.value),
+              timestamp: new Date().toISOString(),
+              elevation: nwsElevation != null
+                ? +(nwsElevation * 3.281).toFixed(0)
+                : undefined,
+              source: 'NWS',
+              stationName: nwsStationName || undefined,
+              stationId: nwsStationId || undefined,
+            };
+            console.log(`Weather served from NWS: ${weather.stationId}`);
+            return res.json(weather);
+          }
+        }
+      }
+      console.warn('NWS: incomplete data, falling through to Open-Meteo');
+    } catch (nwsErr) {
+      console.warn('NWS failed, falling through to Open-Meteo:', nwsErr.message);
+    }
+
+    // --- Tier 3: Open-Meteo (existing fallback) ---
     try {
       const url = 'https://api.open-meteo.com/v1/forecast'
         + `?latitude=${latitude}&longitude=${longitude}`
@@ -54,13 +155,15 @@ app.get('/api/weather/location', async (req, res) => {
           : undefined,
         source: 'Open-Meteo',
       };
-
-      res.json(weather);
+      console.log('Weather served from Open-Meteo');
+      return res.json(weather);
     } catch (apiErr) {
-      console.warn('Open-Meteo API failed, falling back to mock:', apiErr.message);
-      const fallback = generateLocationWeather(latitude, longitude);
-      res.json(fallback);
+      console.warn('Open-Meteo failed, falling back to mock:', apiErr.message);
     }
+
+    // --- Tier 4: Mock data (last resort) ---
+    const fallback = generateLocationWeather(latitude, longitude);
+    res.json(fallback);
   } catch (error) {
     console.error('Location weather error:', error);
     res.status(500).json({ error: 'Failed to fetch location weather' });

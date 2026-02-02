@@ -1,19 +1,42 @@
-import { TankMixProduct } from '../types';
+import { TankMixProduct, RateBasis, MeasurementUnit } from '../types';
+import { getConversionFactor, getBaseDisplayUnit, parseLegacyUnit } from './unitConstants';
 
 /**
- * Convert a per-acre rate to a total amount for the given acreage.
- * Moved from ProductStep so it can be shared across the app.
+ * Convert a rate to a total amount.
+ *
+ * - per_acre (default): rate × conversionFactor × acres
+ * - per_100_gal:        rate × conversionFactor × (totalVolume / 100)
+ *
+ * Falls back to parseLegacyUnit() when new params are not provided.
  */
-export function convertRateToAmount(rate: number, unit: string, acres: number): number {
-  const conversions: Record<string, number> = {
-    'oz/acre': 1 / 128,   // oz to gallons
-    'pt/acre': 1 / 8,     // pints to gallons
-    'qt/acre': 1 / 4,     // quarts to gallons
-    'gal/acre': 1,         // gallons to gallons
-    'lbs/acre': 1,         // pounds to pounds (dry)
-  };
-  const factor = conversions[unit] || 1;
-  return rate * factor * acres;
+export function convertRateToAmount(
+  rate: number,
+  unit: string,
+  acres: number,
+  totalVolume?: number,
+  rateBasis?: RateBasis,
+  measurementUnit?: MeasurementUnit
+): number {
+  let basis: RateBasis;
+  let convFactor: number;
+
+  if (measurementUnit && rateBasis) {
+    basis = rateBasis;
+    convFactor = getConversionFactor(measurementUnit);
+  } else {
+    // Legacy path: parse from the old unit string
+    const parsed = parseLegacyUnit(unit);
+    basis = parsed.rateBasis;
+    convFactor = getConversionFactor(parsed.measurementUnit);
+  }
+
+  if (basis === 'per_100_gal') {
+    const vol = totalVolume ?? 0;
+    return rate * convFactor * (vol / 100);
+  }
+
+  // Default: per_acre
+  return rate * convFactor * acres;
 }
 
 /**
@@ -82,6 +105,22 @@ export function redistributeLoadVolumes(
   return result;
 }
 
+/**
+ * Calculate how many whole packages to buy for a given total amount.
+ */
+export function calculatePackages(
+  totalAmount: number,
+  packageSize: number
+): { packages: number; totalFromPackages: number; excess: number } {
+  if (packageSize <= 0 || totalAmount <= 0) {
+    return { packages: 0, totalFromPackages: 0, excess: 0 };
+  }
+  const packages = Math.ceil(totalAmount / packageSize);
+  const totalFromPackages = packages * packageSize;
+  const excess = Math.round((totalFromPackages - totalAmount) * 100) / 100;
+  return { packages, totalFromPackages, excess };
+}
+
 export interface LoadProductAmount {
   product: TankMixProduct;
   amount: number;       // total product for this load
@@ -101,6 +140,6 @@ export function calculateLoadProducts(
   return selectedProducts.map((item) => ({
     product: item,
     amount: Math.round(item.totalAmount * proportion * 100) / 100,
-    displayUnit: item.product.type === 'liquid' ? 'gal' : 'lbs',
+    displayUnit: getBaseDisplayUnit(item.product.measurementUnit),
   }));
 }

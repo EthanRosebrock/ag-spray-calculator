@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { TankMixProduct } from '../../types';
 import { ContainerCalculator } from '../../utils/containerCalculations';
 import { getContainers } from '../../utils/storageService';
+import { getContainerCategory } from '../../utils/unitConstants';
 
 interface MixingInstructionsProps {
   selectedProducts: TankMixProduct[];
@@ -14,12 +15,22 @@ const MixingInstructions: React.FC<MixingInstructionsProps> = ({ selectedProduct
   const calculator = useMemo(() => new ContainerCalculator(containers), [containers]);
 
   const instructions = useMemo(() => {
-    const breakdowns = selectedProducts.map((item) => ({
-      item,
-      text: calculator.formatContainerBreakdown(
-        calculator.calculateOptimalBreakdown(item.totalAmount, item.product.type)
-      ),
-    }));
+    const breakdowns = selectedProducts.map((item) => {
+      // For bulk products, resolve the container category from the measurement unit
+      const containerType = item.product.type === 'bulk'
+        ? getContainerCategory(item.product.measurementUnit)
+        : item.product.type;
+      return {
+        item,
+        text: calculator.formatContainerBreakdown(
+          calculator.calculateOptimalBreakdown(
+            item.totalAmount,
+            containerType,
+            item.product.preferredContainers
+          )
+        ),
+      };
+    });
 
     const sorted = [...breakdowns].sort(
       (a, b) => a.item.product.mixingOrder - b.item.product.mixingOrder

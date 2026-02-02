@@ -34,6 +34,8 @@ export interface WeatherData {
   elevation: number;
   visibility?: number;
   uvIndex?: number;
+  stationName?: string;
+  stationId?: string;
 }
 
 export interface FieldLocation {

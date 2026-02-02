@@ -12,6 +12,7 @@ import {
   toggleContainerAvailability,
   resetContainers,
 } from '../../utils/storageService';
+import { getBaseDisplayUnit, getContainerCategory } from '../../utils/unitConstants';
 import ContainerModal from '../settings/ContainerModal';
 
 interface ContainerBreakdownProps {
@@ -37,7 +38,15 @@ const ContainerBreakdownSection: React.FC<ContainerBreakdownProps> = ({ selected
 
   const productBreakdowns: ProductBreakdown[] = useMemo(() => {
     return selectedProducts.map((item) => {
-      const breakdown = calculator.calculateOptimalBreakdown(item.totalAmount, item.product.type);
+      // For bulk products, resolve the container category from the measurement unit
+      const containerType = item.product.type === 'bulk'
+        ? getContainerCategory(item.product.measurementUnit)
+        : item.product.type;
+      const breakdown = calculator.calculateOptimalBreakdown(
+        item.totalAmount,
+        containerType,
+        item.product.preferredContainers
+      );
       const breakdownText = calculator.formatContainerBreakdown(breakdown);
       return { item, breakdown, breakdownText };
     });
@@ -73,7 +82,7 @@ const ContainerBreakdownSection: React.FC<ContainerBreakdownProps> = ({ selected
               </div>
               <div className="text-xs text-gray-500">
                 Total: {pb.item.totalAmount.toFixed(2)}{' '}
-                {pb.item.product.type === 'liquid' ? 'gal' : 'lbs'}
+                {getBaseDisplayUnit(pb.item.product.measurementUnit)}
               </div>
             </div>
           ))}

@@ -34,98 +34,87 @@ export class ContainerCalculator {
     preferredContainers?: string[]
   ): ContainerBreakdown {
 
-    // Filter available containers for this product type
-    let availableContainers = this.containerTypes.filter(
-      c => c.productType === productType && c.available
-    );
-
-    // If preferred containers specified, prioritize them
-    if (preferredContainers?.length) {
-      const preferred = availableContainers.filter(c =>
-        preferredContainers.includes(c.id)
-      );
-      const others = availableContainers.filter(c =>
-        !preferredContainers.includes(c.id)
-      );
-      availableContainers = [...preferred, ...others];
-    }
-
-    // Sort by size (largest first) for optimal breakdown
-    availableContainers.sort((a, b) => b.size - a.size);
-
     const breakdown: ContainerBreakdown = {
       containers: [],
       remainder: { amount: 0, unit: '', displayText: '' },
       totalAmount
     };
 
+    // Only use containers that are explicitly assigned to this product
+    let availableContainers: ContainerType[] = [];
+    if (preferredContainers?.length) {
+      availableContainers = this.containerTypes.filter(
+        c => c.productType === productType && c.available && preferredContainers.includes(c.id)
+      );
+    }
+
     let remaining = totalAmount;
 
-    // Calculate containers needed
-    for (const container of availableContainers) {
-      if (remaining <= 0) break;
+    if (availableContainers.length > 0) {
+      // Sort by size (largest first) for optimal breakdown
+      availableContainers.sort((a, b) => b.size - a.size);
 
-      const quantity = Math.floor(remaining / container.size);
-      if (quantity > 0) {
-        breakdown.containers.push({
-          type: container,
-          quantity,
-          totalAmount: quantity * container.size
-        });
-        remaining -= quantity * container.size;
+      // Calculate containers needed
+      for (const container of availableContainers) {
+        if (remaining <= 0) break;
+
+        const quantity = Math.floor(remaining / container.size);
+        if (quantity > 0) {
+          breakdown.containers.push({
+            type: container,
+            quantity,
+            totalAmount: quantity * container.size
+          });
+          remaining -= quantity * container.size;
+        }
       }
     }
 
-    // Handle remainder with smart unit conversion
-    if (remaining > 0) {
-      breakdown.remainder = this.formatRemainder(remaining, productType);
+    // Express any remainder as a measurement (not unassigned containers)
+    if (remaining > 0.001) {
+      const hasBulk = breakdown.containers.some(c => c.type.size >= 250);
+      breakdown.remainder = this.formatRemainder(remaining, productType, hasBulk);
     }
 
     return breakdown;
   }
 
-  private formatRemainder(amount: number, productType: string): {
+  private formatRemainder(amount: number, productType: string, bulk = false): {
     amount: number;
     unit: string;
     displayText: string;
   } {
     if (productType === 'liquid') {
-      if (amount >= 1) {
-        return {
-          amount,
-          unit: 'gal',
-          displayText: `${amount.toFixed(1)} gal`
-        };
-      } else if (amount >= 0.25) {
-        const quarts = amount * 4;
-        return {
-          amount: quarts,
-          unit: 'qt',
-          displayText: `${quarts.toFixed(1)} qt`
-        };
+      // Bulk (250 gal+) remainders: tenths of a gallon with oz in parentheses
+      if (bulk) {
+        const oz = Math.round(amount * 128);
+        if (amount >= 0.1) {
+          return { amount, unit: 'gal', displayText: `${amount.toFixed(1)} gal (${oz} oz)` };
+        }
+        return { amount: oz, unit: 'oz', displayText: `${oz} oz` };
+      }
+      // Standard liquid: whole gal + remaining oz
+      const wholeGal = Math.floor(amount);
+      const remainingOz = Math.round((amount - wholeGal) * 128);
+      if (wholeGal > 0 && remainingOz > 0) {
+        return { amount, unit: 'gal', displayText: `${wholeGal} gal ${remainingOz} oz` };
+      } else if (wholeGal > 0) {
+        return { amount: wholeGal, unit: 'gal', displayText: `${wholeGal} gal` };
       } else {
-        const ounces = amount * 128;
-        return {
-          amount: ounces,
-          unit: 'oz',
-          displayText: `${Math.ceil(ounces)} oz`
-        };
+        const oz = Math.round(amount * 128);
+        return { amount: oz, unit: 'oz', displayText: `${oz} oz` };
       }
     } else {
-      // Dry products
-      if (amount >= 1) {
-        return {
-          amount,
-          unit: 'lb',
-          displayText: `${amount.toFixed(1)} lbs`
-        };
+      const wholeLbs = Math.floor(amount);
+      const remainingOz = Math.round((amount - wholeLbs) * 16);
+
+      if (wholeLbs > 0 && remainingOz > 0) {
+        return { amount, unit: 'lb', displayText: `${wholeLbs} lbs ${remainingOz} oz` };
+      } else if (wholeLbs > 0) {
+        return { amount: wholeLbs, unit: 'lb', displayText: `${wholeLbs} lbs` };
       } else {
-        const ounces = amount * 16;
-        return {
-          amount: ounces,
-          unit: 'oz',
-          displayText: `${Math.ceil(ounces)} oz`
-        };
+        const oz = Math.round(amount * 16);
+        return { amount: oz, unit: 'oz', displayText: `${oz} oz` };
       }
     }
   }
@@ -168,6 +157,23 @@ export const DEFAULT_CONTAINERS: ContainerType[] = [
     id: 'liquid-1qt',
     name: '1 qt bottle',
     size: 0.25,
+    unit: 'gal',
+    productType: 'liquid',
+    available: true
+  },
+  // Bulk liquid containers
+  {
+    id: 'liquid-30drum',
+    name: '30 gal drum',
+    size: 30,
+    unit: 'gal',
+    productType: 'liquid',
+    available: true
+  },
+  {
+    id: 'liquid-250tote',
+    name: '250 gal tote',
+    size: 250,
     unit: 'gal',
     productType: 'liquid',
     available: true

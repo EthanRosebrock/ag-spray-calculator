@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Product } from '../../types';
 import { ContainerType } from '../../utils/containerCalculations';
-import { LocationWeatherService, LocationData, FieldLocation, getCurrentPosition } from '../../utils/weatherService';
+import { LocationWeatherService, LocationData, getCurrentPosition } from '../../utils/weatherService';
 import {
   getProducts,
   deleteProduct,
@@ -57,8 +57,6 @@ const LocationTab: React.FC = () => {
   const [farmLocation, setFarmLocation] = useState<LocationData>(
     LocationWeatherService.getFarmLocation()
   );
-  const [fieldLocations, setFieldLocations] = useState<FieldLocation[]>([]);
-  const [showAddField, setShowAddField] = useState(false);
   const [saved, setSaved] = useState(false);
   const [geoStatus, setGeoStatus] = useState<'idle' | 'locating' | 'error'>('idle');
 
@@ -74,20 +72,10 @@ const LocationTab: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    setFieldLocations(LocationWeatherService.getFieldLocations());
-  }, []);
-
   const updateFarmLocation = () => {
     LocationWeatherService.setFarmLocation(farmLocation);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
-  };
-
-  const addFieldLocation = (field: FieldLocation) => {
-    LocationWeatherService.addFieldLocation(field);
-    setFieldLocations(LocationWeatherService.getFieldLocations());
-    setShowAddField(false);
   };
 
   return (
@@ -156,141 +144,10 @@ const LocationTab: React.FC = () => {
         </div>
       </div>
 
-      <div className="card">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold">Field Locations</h2>
-          <button onClick={() => setShowAddField(true)} className="btn-secondary text-sm py-2 px-4">
-            + Add Field
-          </button>
-        </div>
-
-        {fieldLocations.length === 0 ? (
-          <p className="text-center py-6 text-gray-500 text-sm">
-            No field locations configured
-          </p>
-        ) : (
-          <div className="space-y-3">
-            {fieldLocations.map((f) => (
-              <div key={f.id} className="border border-gray-200 rounded-lg p-4">
-                <h3 className="font-semibold">{f.name}</h3>
-                <p className="text-sm text-gray-600">
-                  {f.latitude.toFixed(4)}, {f.longitude.toFixed(4)} &middot; {f.elevation}ft
-                  {f.microclimate && (
-                    <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-xs">
-                      {f.microclimate}
-                    </span>
-                  )}
-                </p>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {showAddField && (
-        <AddFieldModal
-          onAdd={addFieldLocation}
-          onClose={() => setShowAddField(false)}
-        />
-      )}
-    </div>
-  );
-};
-
-// --- Add Field Modal (reuse from LocationSettings) ---
-interface AddFieldModalProps {
-  onAdd: (field: FieldLocation) => void;
-  onClose: () => void;
-}
-
-const AddFieldModal: React.FC<AddFieldModalProps> = ({ onAdd, onClose }) => {
-  const [field, setField] = useState<Partial<FieldLocation>>({
-    name: '',
-    latitude: 0,
-    longitude: 0,
-    elevation: 700,
-    microclimate: undefined,
-  });
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!field.name || !field.latitude || !field.longitude) return;
-    onAdd({
-      id: Date.now().toString(),
-      name: field.name,
-      latitude: field.latitude,
-      longitude: field.longitude,
-      elevation: field.elevation || 700,
-      microclimate: field.microclimate,
-    });
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-md w-full p-6">
-        <h2 className="text-xl font-semibold mb-4">Add Field Location</h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Field Name</label>
-            <input
-              type="text"
-              className="input-field"
-              value={field.name || ''}
-              onChange={(e) => setField({ ...field, name: e.target.value })}
-              required
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Latitude</label>
-              <input
-                type="number"
-                step="0.0001"
-                className="input-field"
-                value={field.latitude || ''}
-                onChange={(e) => setField({ ...field, latitude: parseFloat(e.target.value) })}
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Longitude</label>
-              <input
-                type="number"
-                step="0.0001"
-                className="input-field"
-                value={field.longitude || ''}
-                onChange={(e) => setField({ ...field, longitude: parseFloat(e.target.value) })}
-                required
-              />
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Microclimate (Optional)
-            </label>
-            <select
-              className="input-field"
-              value={field.microclimate || ''}
-              onChange={(e) =>
-                setField({ ...field, microclimate: e.target.value || undefined })
-              }
-            >
-              <option value="">Standard</option>
-              <option value="sheltered">Sheltered</option>
-              <option value="exposed">Exposed</option>
-              <option value="valley">Valley</option>
-              <option value="hilltop">Hilltop</option>
-            </select>
-          </div>
-          <div className="flex gap-3 pt-2">
-            <button type="submit" className="btn-primary flex-1">
-              Add Field
-            </button>
-            <button type="button" onClick={onClose} className="btn-secondary flex-1">
-              Cancel
-            </button>
-          </div>
-        </form>
+      <div className="card bg-gray-50">
+        <p className="text-sm text-gray-500">
+          Field locations are now managed in the <strong>Fields</strong> tab.
+        </p>
       </div>
     </div>
   );

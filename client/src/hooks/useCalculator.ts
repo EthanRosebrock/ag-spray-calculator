@@ -47,11 +47,19 @@ export function useCalculator() {
     (product: Product) => {
       setSelectedProducts((prev) => {
         if (prev.some((p) => p.product.id === product.id)) return prev;
-        const totalAmount = convertRateToAmount(product.defaultRate, product.unit, acres);
-        return [...prev, { product, rate: product.defaultRate, totalAmount }];
+        const rateBasis = product.rateBasis ?? 'per_acre';
+        const totalAmount = convertRateToAmount(
+          product.defaultRate,
+          product.unit,
+          acres,
+          carrierRate * acres,
+          product.rateBasis,
+          product.measurementUnit
+        );
+        return [...prev, { product, rate: product.defaultRate, totalAmount, rateBasis }];
       });
     },
-    [acres]
+    [acres, carrierRate]
   );
 
   const updateProductRate = useCallback(
@@ -59,27 +67,41 @@ export function useCalculator() {
       setSelectedProducts((prev) => {
         const updated = [...prev];
         const item = updated[index];
-        const totalAmount = convertRateToAmount(newRate, item.product.unit, acres);
+        const totalAmount = convertRateToAmount(
+          newRate,
+          item.product.unit,
+          acres,
+          carrierRate * acres,
+          item.product.rateBasis,
+          item.product.measurementUnit
+        );
         updated[index] = { ...item, rate: newRate, totalAmount };
         return updated;
       });
     },
-    [acres]
+    [acres, carrierRate]
   );
 
   const removeProduct = useCallback((index: number) => {
     setSelectedProducts((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
-  // Recalculate product totals when acres changes
+  // Recalculate product totals when acres or carrierRate changes
   useEffect(() => {
     setSelectedProducts((prev) =>
       prev.map((item) => ({
         ...item,
-        totalAmount: convertRateToAmount(item.rate, item.product.unit, acres),
+        totalAmount: convertRateToAmount(
+          item.rate,
+          item.product.unit,
+          acres,
+          carrierRate * acres,
+          item.product.rateBasis,
+          item.product.measurementUnit
+        ),
       }))
     );
-  }, [acres]);
+  }, [acres, carrierRate]);
 
   return {
     tankSize,
