@@ -4,10 +4,17 @@ import { supabase } from './supabaseClient';
 import { LocationData } from './weatherService';
 
 // --- Snake ↔ Camel case helpers ---
+const SNAKE_OVERRIDES: Record<string, string> = {
+  pHSensitive: 'ph_sensitive',
+};
+const CAMEL_OVERRIDES: Record<string, string> = {
+  ph_sensitive: 'pHSensitive',
+};
+
 function toSnakeCase(obj: Record<string, any>): Record<string, any> {
   const result: Record<string, any> = {};
   for (const key in obj) {
-    const snakeKey = key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
+    const snakeKey = SNAKE_OVERRIDES[key] || key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
     result[snakeKey] = obj[key];
   }
   return result;
@@ -16,7 +23,7 @@ function toSnakeCase(obj: Record<string, any>): Record<string, any> {
 function toCamelCase(obj: Record<string, any>): Record<string, any> {
   const result: Record<string, any> = {};
   for (const key in obj) {
-    const camelKey = key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+    const camelKey = CAMEL_OVERRIDES[key] || key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
     result[camelKey] = obj[key];
   }
   return result;
@@ -414,81 +421,95 @@ export function getFarmLocationSync(): LocationData {
 }
 
 // --- One-time localStorage → Supabase migration ---
-const MIGRATION_KEY = 'agrispray_supabase_migrated';
+const MIGRATION_KEY = 'agrispray_supabase_migrated_v2';
 
 export async function migrateLocalStorageToSupabase(): Promise<boolean> {
   if (localStorage.getItem(MIGRATION_KEY)) return false;
 
   let migrated = false;
+  let anyError = false;
 
   // Products
   const products = loadJSON<Product[]>(KEYS.products);
   if (products && products.length > 0) {
     const rows = products.map((p) => toSnakeCase(p as any));
-    await supabase.from('products').upsert(rows);
-    migrated = true;
+    const { error } = await supabase.from('products').upsert(rows);
+    if (error) { console.error('Migration: products failed', error); anyError = true; }
+    else migrated = true;
   }
 
   // Fields
   const fields = loadJSON<Field[]>(KEYS.fields);
   if (fields && fields.length > 0) {
     const rows = fields.map((f) => toSnakeCase(f as any));
-    await supabase.from('fields').upsert(rows);
-    migrated = true;
+    const { error } = await supabase.from('fields').upsert(rows);
+    if (error) { console.error('Migration: fields failed', error); anyError = true; }
+    else migrated = true;
   }
 
   // Spray Records
   const records = loadJSON<SprayRecord[]>(KEYS.records);
   if (records && records.length > 0) {
     const rows = records.map((r) => toSnakeCase(r as any));
-    await supabase.from('spray_records').upsert(rows);
-    migrated = true;
+    const { error } = await supabase.from('spray_records').upsert(rows);
+    if (error) { console.error('Migration: spray_records failed', error); anyError = true; }
+    else migrated = true;
   }
 
   // Tender Routes
   const routes = loadJSON<TenderRoute[]>(KEYS.routes);
   if (routes && routes.length > 0) {
     const rows = routes.map((r) => toSnakeCase(r as any));
-    await supabase.from('tender_routes').upsert(rows);
-    migrated = true;
+    const { error } = await supabase.from('tender_routes').upsert(rows);
+    if (error) { console.error('Migration: tender_routes failed', error); anyError = true; }
+    else migrated = true;
   }
 
   // Saved Pins
   const pins = loadJSON<SavedPin[]>(KEYS.pins);
   if (pins && pins.length > 0) {
     const rows = pins.map((p) => toSnakeCase(p as any));
-    await supabase.from('saved_pins').upsert(rows);
-    migrated = true;
+    const { error } = await supabase.from('saved_pins').upsert(rows);
+    if (error) { console.error('Migration: saved_pins failed', error); anyError = true; }
+    else migrated = true;
   }
 
   // Calculator Defaults
   const calcDefaults = loadJSON<CalculatorDefaults>(KEYS.calculatorDefaults);
   if (calcDefaults) {
-    await supabase.from('settings').upsert({ key: 'calculator_defaults', value: calcDefaults });
-    migrated = true;
+    const { error } = await supabase.from('settings').upsert({ key: 'calculator_defaults', value: calcDefaults });
+    if (error) { console.error('Migration: calculator_defaults failed', error); anyError = true; }
+    else migrated = true;
   }
 
   // Tank Presets
   const tankPresets = loadJSON<number[]>(KEYS.tankPresets);
   if (tankPresets) {
-    await supabase.from('settings').upsert({ key: 'tank_presets', value: tankPresets });
-    migrated = true;
+    const { error } = await supabase.from('settings').upsert({ key: 'tank_presets', value: tankPresets });
+    if (error) { console.error('Migration: tank_presets failed', error); anyError = true; }
+    else migrated = true;
   }
 
   // Carrier Presets
   const carrierPresets = loadJSON<number[]>(KEYS.carrierPresets);
   if (carrierPresets) {
-    await supabase.from('settings').upsert({ key: 'carrier_presets', value: carrierPresets });
-    migrated = true;
+    const { error } = await supabase.from('settings').upsert({ key: 'carrier_presets', value: carrierPresets });
+    if (error) { console.error('Migration: carrier_presets failed', error); anyError = true; }
+    else migrated = true;
   }
 
   // Farm Location
   const farmLoc = loadJSON<LocationData>(KEYS.farmLocation);
   if (farmLoc) {
-    await supabase.from('settings').upsert({ key: 'farm_location', value: farmLoc });
-    migrated = true;
+    const { error } = await supabase.from('settings').upsert({ key: 'farm_location', value: farmLoc });
+    if (error) { console.error('Migration: farm_location failed', error); anyError = true; }
+    else migrated = true;
   }
 
-  localStorage.setItem(MIGRATION_KEY, new Date().toISOString());
+  // Only mark as done if no errors occurred
+  if (!anyError) {
+    localStorage.setItem(MIGRATION_KEY, new Date().toISOString());
+  }
+
   return migrated;
 }
