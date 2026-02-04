@@ -9,3 +9,7 @@ services:
         value: production
       - key: WU_API_KEY
         sync: false
+      - key: REACT_APP_SUPABASE_URL
+        value: https://daqgabtnzfchiucmbqcn.supabase.co
+      - key: REACT_APP_SUPABASE_ANON_KEY
+        value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRhcWdhYnRuemZjaGl1Y21icWNuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAyMTM0MDIsImV4cCI6MjA4NTc4OTQwMn0.loBRS2MU8Xox9KGCwIVL94-NZ1H3wuHlX5gakLZZB6g
