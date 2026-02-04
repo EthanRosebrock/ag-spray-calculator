@@ -132,33 +132,37 @@ const MergeBoundariesModal: React.FC<MergeBoundariesModalProps> = ({ onMerge, on
   }, [features, overrides, matchResults]);
 
   const handleApply = async () => {
-    let count = 0;
-    const currentFields = await getFields();
+    try {
+      let count = 0;
+      const currentFields = await getFields();
 
-    for (const feature of features) {
-      const fieldId = getEffectiveFieldId(feature.index);
-      if (!fieldId) continue;
+      for (const feature of features) {
+        const fieldId = getEffectiveFieldId(feature.index);
+        if (!fieldId) continue;
 
-      const existing = currentFields.find((f) => f.id === fieldId);
-      if (!existing) continue;
+        const existing = currentFields.find((f) => f.id === fieldId);
+        if (!existing) continue;
 
-      const updated: Field = { ...existing, boundary: feature.boundary };
+        const updated: Field = { ...existing, boundary: feature.boundary };
 
-      if (updateLatLng && feature.centroid) {
-        updated.latitude = +feature.centroid[0].toFixed(6);
-        updated.longitude = +feature.centroid[1].toFixed(6);
+        if (updateLatLng && feature.centroid) {
+          updated.latitude = +feature.centroid[0].toFixed(6);
+          updated.longitude = +feature.centroid[1].toFixed(6);
+        }
+
+        if (updateAcres && feature.acres > 0) {
+          updated.acres = feature.acres;
+        }
+
+        await saveField(updated);
+        count++;
       }
 
-      if (updateAcres && feature.acres > 0) {
-        updated.acres = feature.acres;
-      }
-
-      await saveField(updated);
-      count++;
+      setApplyCount(count);
+      setStep('done');
+    } catch (err) {
+      setError(`Failed to apply boundaries: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
-
-    setApplyCount(count);
-    setStep('done');
   };
 
   const handleDone = () => {
@@ -224,6 +228,12 @@ const MergeBoundariesModal: React.FC<MergeBoundariesModalProps> = ({ onMerge, on
                 {assignedCount} matched to fields
               </span>
             </div>
+
+            {error && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700 mb-4">
+                {error}
+              </div>
+            )}
 
             {duplicateCheck.size > 0 && (
               <div className="p-3 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800 mb-4">

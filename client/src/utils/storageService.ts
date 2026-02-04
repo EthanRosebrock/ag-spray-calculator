@@ -1,6 +1,6 @@
 import { Product, Field, CalculatorDefaults, SprayRecord, TenderRoute, SavedPin } from '../types';
 import { ContainerType, DEFAULT_CONTAINERS } from './containerCalculations';
-import { supabase } from './supabaseClient';
+import { supabase, supabaseConfigured } from './supabaseClient';
 import { LocationData } from './weatherService';
 
 // --- Snake ↔ Camel case helpers ---
@@ -116,6 +116,9 @@ export const DEFAULT_FARM_LOCATION: LocationData = {
 
 // --- Products ---
 export async function getProducts(): Promise<Product[]> {
+  if (!supabaseConfigured) {
+    return loadJSON<Product[]>(KEYS.products) || DEFAULT_PRODUCTS;
+  }
   try {
     const { data, error } = await supabase.from('products').select('*');
     if (error || !data || data.length === 0) {
@@ -131,27 +134,34 @@ export async function getProducts(): Promise<Product[]> {
 }
 
 export async function saveProduct(product: Product): Promise<void> {
-  const row = toSnakeCase(product as any);
-  await supabase.from('products').upsert(row);
-  // Update local cache
   const cached = loadJSON<Product[]>(KEYS.products) || [];
   const idx = cached.findIndex((p) => p.id === product.id);
   if (idx >= 0) cached[idx] = product;
   else cached.push(product);
   saveJSON(KEYS.products, cached);
+  if (supabaseConfigured) {
+    const row = toSnakeCase(product as any);
+    supabase.from('products').upsert(row).then(() => {}, () => {});
+  }
 }
 
 export async function deleteProduct(id: string): Promise<void> {
-  await supabase.from('products').delete().eq('id', id);
   const cached = (loadJSON<Product[]>(KEYS.products) || []).filter((p) => p.id !== id);
   saveJSON(KEYS.products, cached);
+  if (supabaseConfigured) {
+    supabase.from('products').delete().eq('id', id).then(() => {}, () => {});
+  }
 }
 
 export async function resetProducts(): Promise<void> {
-  await supabase.from('products').delete().neq('id', '');
-  const rows = DEFAULT_PRODUCTS.map((p) => toSnakeCase(p as any));
-  await supabase.from('products').insert(rows);
   saveJSON(KEYS.products, DEFAULT_PRODUCTS);
+  if (supabaseConfigured) {
+    try {
+      await supabase.from('products').delete().neq('id', '');
+      const rows = DEFAULT_PRODUCTS.map((p) => toSnakeCase(p as any));
+      await supabase.from('products').insert(rows);
+    } catch {}
+  }
 }
 
 // --- Containers (localStorage only, no Supabase table) ---
@@ -190,6 +200,9 @@ export function resetContainers(): void {
 
 // --- Fields ---
 export async function getFields(): Promise<Field[]> {
+  if (!supabaseConfigured) {
+    return loadJSON<Field[]>(KEYS.fields) || [];
+  }
   try {
     const { data, error } = await supabase.from('fields').select('*');
     if (error || !data) {
@@ -208,31 +221,32 @@ export async function getFields(): Promise<Field[]> {
 }
 
 export async function saveField(field: Field): Promise<void> {
-  try {
-    const row = toSnakeCase(field as any);
-    await supabase.from('fields').upsert(row);
-  } catch {
-    // Supabase unavailable — fall through to localStorage
-  }
+  // Save to localStorage first (synchronous, always works)
   const cached = loadJSON<Field[]>(KEYS.fields) || [];
   const idx = cached.findIndex((f) => f.id === field.id);
   if (idx >= 0) cached[idx] = field;
   else cached.push(field);
   saveJSON(KEYS.fields, cached);
+  // Sync to Supabase in the background (don't block on it)
+  if (supabaseConfigured) {
+    const row = toSnakeCase(field as any);
+    supabase.from('fields').upsert(row).then(() => {}, () => {});
+  }
 }
 
 export async function deleteField(id: string): Promise<void> {
-  try {
-    await supabase.from('fields').delete().eq('id', id);
-  } catch {
-    // Supabase unavailable — fall through to localStorage
-  }
   const cached = (loadJSON<Field[]>(KEYS.fields) || []).filter((f) => f.id !== id);
   saveJSON(KEYS.fields, cached);
+  if (supabaseConfigured) {
+    supabase.from('fields').delete().eq('id', id).then(() => {}, () => {});
+  }
 }
 
 // --- Calculator Defaults ---
 export async function getCalculatorDefaults(): Promise<CalculatorDefaults> {
+  if (!supabaseConfigured) {
+    return loadJSON<CalculatorDefaults>(KEYS.calculatorDefaults) || DEFAULT_CALCULATOR;
+  }
   try {
     const { data } = await supabase
       .from('settings')
@@ -253,11 +267,16 @@ export async function saveCalculatorDefaults(defaults: Partial<CalculatorDefault
   const current = loadJSON<CalculatorDefaults>(KEYS.calculatorDefaults) || DEFAULT_CALCULATOR;
   const merged = { ...current, ...defaults };
   saveJSON(KEYS.calculatorDefaults, merged);
-  await supabase.from('settings').upsert({ key: 'calculator_defaults', value: merged });
+  if (supabaseConfigured) {
+    supabase.from('settings').upsert({ key: 'calculator_defaults', value: merged }).then(() => {}, () => {});
+  }
 }
 
 // --- Tank Size Presets ---
 export async function getTankPresets(): Promise<number[]> {
+  if (!supabaseConfigured) {
+    return loadJSON<number[]>(KEYS.tankPresets) || DEFAULT_TANK_PRESETS;
+  }
   try {
     const { data } = await supabase
       .from('settings')
@@ -276,11 +295,16 @@ export async function getTankPresets(): Promise<number[]> {
 
 export async function saveTankPresets(presets: number[]): Promise<void> {
   saveJSON(KEYS.tankPresets, presets);
-  await supabase.from('settings').upsert({ key: 'tank_presets', value: presets });
+  if (supabaseConfigured) {
+    supabase.from('settings').upsert({ key: 'tank_presets', value: presets }).then(() => {}, () => {});
+  }
 }
 
 // --- Carrier Rate Presets ---
 export async function getCarrierPresets(): Promise<number[]> {
+  if (!supabaseConfigured) {
+    return loadJSON<number[]>(KEYS.carrierPresets) || DEFAULT_CARRIER_PRESETS;
+  }
   try {
     const { data } = await supabase
       .from('settings')
@@ -299,11 +323,16 @@ export async function getCarrierPresets(): Promise<number[]> {
 
 export async function saveCarrierPresets(presets: number[]): Promise<void> {
   saveJSON(KEYS.carrierPresets, presets);
-  await supabase.from('settings').upsert({ key: 'carrier_presets', value: presets });
+  if (supabaseConfigured) {
+    supabase.from('settings').upsert({ key: 'carrier_presets', value: presets }).then(() => {}, () => {});
+  }
 }
 
 // --- Spray Records ---
 export async function getRecords(): Promise<SprayRecord[]> {
+  if (!supabaseConfigured) {
+    return loadJSON<SprayRecord[]>(KEYS.records) || [];
+  }
   try {
     const { data, error } = await supabase.from('spray_records').select('*');
     if (error || !data) {
@@ -321,23 +350,30 @@ export async function getRecords(): Promise<SprayRecord[]> {
 }
 
 export async function saveRecord(record: SprayRecord): Promise<void> {
-  const row = toSnakeCase(record as any);
-  await supabase.from('spray_records').upsert(row);
   const cached = loadJSON<SprayRecord[]>(KEYS.records) || [];
   const idx = cached.findIndex((r) => r.id === record.id);
   if (idx >= 0) cached[idx] = record;
   else cached.push(record);
   saveJSON(KEYS.records, cached);
+  if (supabaseConfigured) {
+    const row = toSnakeCase(record as any);
+    supabase.from('spray_records').upsert(row).then(() => {}, () => {});
+  }
 }
 
 export async function deleteRecord(id: string): Promise<void> {
-  await supabase.from('spray_records').delete().eq('id', id);
   const cached = (loadJSON<SprayRecord[]>(KEYS.records) || []).filter((r) => r.id !== id);
   saveJSON(KEYS.records, cached);
+  if (supabaseConfigured) {
+    supabase.from('spray_records').delete().eq('id', id).then(() => {}, () => {});
+  }
 }
 
 // --- Tender Routes ---
 export async function getRoutes(): Promise<TenderRoute[]> {
+  if (!supabaseConfigured) {
+    return loadJSON<TenderRoute[]>(KEYS.routes) || [];
+  }
   try {
     const { data, error } = await supabase.from('tender_routes').select('*');
     if (error || !data) {
@@ -355,23 +391,30 @@ export async function getRoutes(): Promise<TenderRoute[]> {
 }
 
 export async function saveRoute(route: TenderRoute): Promise<void> {
-  const row = toSnakeCase(route as any);
-  await supabase.from('tender_routes').upsert(row);
   const cached = loadJSON<TenderRoute[]>(KEYS.routes) || [];
   const idx = cached.findIndex((r) => r.id === route.id);
   if (idx >= 0) cached[idx] = route;
   else cached.push(route);
   saveJSON(KEYS.routes, cached);
+  if (supabaseConfigured) {
+    const row = toSnakeCase(route as any);
+    supabase.from('tender_routes').upsert(row).then(() => {}, () => {});
+  }
 }
 
 export async function deleteRoute(id: string): Promise<void> {
-  await supabase.from('tender_routes').delete().eq('id', id);
   const cached = (loadJSON<TenderRoute[]>(KEYS.routes) || []).filter((r) => r.id !== id);
   saveJSON(KEYS.routes, cached);
+  if (supabaseConfigured) {
+    supabase.from('tender_routes').delete().eq('id', id).then(() => {}, () => {});
+  }
 }
 
 // --- Saved Pins ---
 export async function getPins(): Promise<SavedPin[]> {
+  if (!supabaseConfigured) {
+    return loadJSON<SavedPin[]>(KEYS.pins) || [];
+  }
   try {
     const { data, error } = await supabase.from('saved_pins').select('*');
     if (error || !data) {
@@ -389,32 +432,43 @@ export async function getPins(): Promise<SavedPin[]> {
 }
 
 export async function savePin(pin: SavedPin): Promise<void> {
-  const row = toSnakeCase(pin as any);
-  await supabase.from('saved_pins').upsert(row);
   const cached = loadJSON<SavedPin[]>(KEYS.pins) || [];
   const idx = cached.findIndex((p) => p.id === pin.id);
   if (idx >= 0) cached[idx] = pin;
   else cached.push(pin);
   saveJSON(KEYS.pins, cached);
+  if (supabaseConfigured) {
+    const row = toSnakeCase(pin as any);
+    supabase.from('saved_pins').upsert(row).then(() => {}, () => {});
+  }
 }
 
 export async function deletePin(id: string): Promise<void> {
-  await supabase.from('saved_pins').delete().eq('id', id);
   const cached = (loadJSON<SavedPin[]>(KEYS.pins) || []).filter((p) => p.id !== id);
   saveJSON(KEYS.pins, cached);
+  if (supabaseConfigured) {
+    supabase.from('saved_pins').delete().eq('id', id).then(() => {}, () => {});
+  }
 }
 
 export async function replaceAllPins(pins: SavedPin[]): Promise<void> {
   saveJSON(KEYS.pins, pins);
-  await supabase.from('saved_pins').delete().neq('id', '');
-  if (pins.length > 0) {
-    const rows = pins.map((p) => toSnakeCase(p as any));
-    await supabase.from('saved_pins').insert(rows);
+  if (supabaseConfigured) {
+    try {
+      await supabase.from('saved_pins').delete().neq('id', '');
+      if (pins.length > 0) {
+        const rows = pins.map((p) => toSnakeCase(p as any));
+        await supabase.from('saved_pins').insert(rows);
+      }
+    } catch {}
   }
 }
 
 // --- Farm Location ---
 export async function getFarmLocation(): Promise<LocationData> {
+  if (!supabaseConfigured) {
+    return loadJSON<LocationData>(KEYS.farmLocation) || DEFAULT_FARM_LOCATION;
+  }
   try {
     const { data } = await supabase
       .from('settings')
@@ -433,7 +487,9 @@ export async function getFarmLocation(): Promise<LocationData> {
 
 export async function saveFarmLocation(location: LocationData): Promise<void> {
   saveJSON(KEYS.farmLocation, location);
-  await supabase.from('settings').upsert({ key: 'farm_location', value: location });
+  if (supabaseConfigured) {
+    supabase.from('settings').upsert({ key: 'farm_location', value: location }).then(() => {}, () => {});
+  }
 }
 
 // Synchronous version for code paths that can't await (e.g. WeatherService static methods)
@@ -445,6 +501,7 @@ export function getFarmLocationSync(): LocationData {
 const MIGRATION_KEY = 'agrispray_supabase_migrated_v2';
 
 export async function migrateLocalStorageToSupabase(): Promise<boolean> {
+  if (!supabaseConfigured) return false;
   if (localStorage.getItem(MIGRATION_KEY)) return false;
 
   let migrated = false;
