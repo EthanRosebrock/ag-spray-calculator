@@ -66,7 +66,7 @@ const ProductModal: React.FC<ProductModalProps> = ({ product, onSave, onClose })
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || defaultRate <= 0) return;
 
@@ -87,7 +87,7 @@ const ProductModal: React.FC<ProductModalProps> = ({ product, onSave, onClose })
       ...(preferredContainers.length > 0 ? { preferredContainers } : {}),
     };
 
-    saveProduct(saved);
+    await saveProduct(saved);
     onSave(saved);
   };
 

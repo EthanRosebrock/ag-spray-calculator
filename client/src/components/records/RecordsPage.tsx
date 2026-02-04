@@ -11,9 +11,8 @@ const RecordsPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [dateFilter, setDateFilter] = useState('');
 
-  const reload = () => {
-    const all = getRecords();
-    // Sort newest first
+  const reload = async () => {
+    const all = await getRecords();
     all.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     setRecords(all);
   };
@@ -40,15 +39,15 @@ const RecordsPage: React.FC = () => {
     });
   }, [records, searchTerm, dateFilter]);
 
-  const handleSave = (record: SprayRecord) => {
-    saveRecord(record);
-    reload();
+  const handleSave = async (record: SprayRecord) => {
+    await saveRecord(record);
+    await reload();
     setShowModal(false);
   };
 
-  const handleDelete = (id: string) => {
-    deleteRecord(id);
-    reload();
+  const handleDelete = async (id: string) => {
+    await deleteRecord(id);
+    await reload();
     setDeleteConfirm(null);
   };
 

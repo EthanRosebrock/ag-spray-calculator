@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Product } from '../../types';
 import { ContainerType } from '../../utils/containerCalculations';
 import { LocationWeatherService, LocationData, getCurrentPosition, geocodeAddress } from '../../utils/weatherService';
@@ -54,18 +54,26 @@ const SettingsPage: React.FC = () => {
 
 // --- Location Tab ---
 const LocationTab: React.FC = () => {
-  const [farmLocation, setFarmLocation] = useState<LocationData>(
-    LocationWeatherService.getFarmLocation()
-  );
+  const [farmLocation, setFarmLocation] = useState<LocationData>({
+    latitude: 0, longitude: 0, city: '', state: '', county: '', timezone: '',
+  });
   const [address, setAddress] = useState('');
   const [saved, setSaved] = useState(false);
   const [searchStatus, setSearchStatus] = useState<'idle' | 'searching' | 'error'>('idle');
   const [searchError, setSearchError] = useState('');
   const [geoStatus, setGeoStatus] = useState<'idle' | 'locating' | 'error'>('idle');
+  const [loading, setLoading] = useState(true);
 
-  const saveFarmLocation = (location: LocationData) => {
+  useEffect(() => {
+    LocationWeatherService.getFarmLocation().then((loc) => {
+      setFarmLocation(loc);
+      setLoading(false);
+    });
+  }, []);
+
+  const saveFarmLocationAndUpdate = async (location: LocationData) => {
     setFarmLocation(location);
-    LocationWeatherService.setFarmLocation(location);
+    await LocationWeatherService.setFarmLocation(location);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -80,7 +88,7 @@ const LocationTab: React.FC = () => {
 
     try {
       const result = await geocodeAddress(trimmed);
-      saveFarmLocation({
+      await saveFarmLocationAndUpdate({
         latitude: result.latitude,
         longitude: result.longitude,
         city: result.city,
@@ -107,7 +115,7 @@ const LocationTab: React.FC = () => {
     setSaved(false);
     const pos = await getCurrentPosition();
     if (pos) {
-      saveFarmLocation({
+      await saveFarmLocationAndUpdate({
         ...farmLocation,
         latitude: +pos.latitude.toFixed(4),
         longitude: +pos.longitude.toFixed(4),
@@ -118,6 +126,10 @@ const LocationTab: React.FC = () => {
       setTimeout(() => setGeoStatus('idle'), 3000);
     }
   };
+
+  if (loading) {
+    return <div className="card"><p className="text-sm text-gray-500">Loading location...</p></div>;
+  }
 
   return (
     <div className="space-y-6">
@@ -164,15 +176,15 @@ const LocationTab: React.FC = () => {
           </div>
           <div>
             <span className="block text-gray-500">City</span>
-            <span className="font-medium">{farmLocation.city || '—'}</span>
+            <span className="font-medium">{farmLocation.city || '\u2014'}</span>
           </div>
           <div>
             <span className="block text-gray-500">State</span>
-            <span className="font-medium">{farmLocation.state || '—'}</span>
+            <span className="font-medium">{farmLocation.state || '\u2014'}</span>
           </div>
           <div>
             <span className="block text-gray-500">County</span>
-            <span className="font-medium">{farmLocation.county || '—'}</span>
+            <span className="font-medium">{farmLocation.county || '\u2014'}</span>
           </div>
         </div>
 
@@ -203,11 +215,16 @@ const LocationTab: React.FC = () => {
 
 // --- Products Tab ---
 const ProductsTab: React.FC = () => {
-  const [products, setProducts] = useState<Product[]>(() => getProducts());
+  const [products, setProducts] = useState<Product[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
-  const reload = () => setProducts(getProducts());
+  const reload = async () => {
+    const p = await getProducts();
+    setProducts(p);
+  };
+
+  useEffect(() => { reload(); }, []);
 
   return (
     <div className="space-y-4">
@@ -224,8 +241,8 @@ const ProductsTab: React.FC = () => {
             + Add Product
           </button>
           <button
-            onClick={() => {
-              resetProducts();
+            onClick={async () => {
+              await resetProducts();
               reload();
             }}
             className="btn-secondary text-sm py-2 px-4"
@@ -263,8 +280,8 @@ const ProductsTab: React.FC = () => {
                 Edit
               </button>
               <button
-                onClick={() => {
-                  deleteProduct(p.id);
+                onClick={async () => {
+                  await deleteProduct(p.id);
                   reload();
                 }}
                 className="text-sm text-red-500 hover:text-red-700"

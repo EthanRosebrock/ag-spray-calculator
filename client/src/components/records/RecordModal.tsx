@@ -26,7 +26,7 @@ const RecordModal: React.FC<RecordModalProps> = ({ prefill, onSave, onClose }) =
   const [products, setProducts] = useState<SprayRecordProduct[]>(prefill?.products || []);
 
   useEffect(() => {
-    setFields(getFields());
+    getFields().then(setFields);
   }, []);
 
   const toggleField = (id: string) => {

@@ -5,3 +5,4 @@ client/build/
 .env.local
 .env.production
 *.log
+supabase/.temp/

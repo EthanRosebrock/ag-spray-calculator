@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { getCarrierPresets, saveCarrierPresets } from '../../utils/storageService';
 
 interface CarrierAcresCardProps {
@@ -14,19 +14,23 @@ const CarrierAcresCard: React.FC<CarrierAcresCardProps> = ({
   onCarrierRateChange,
   onAcresChange,
 }) => {
-  const [presets, setPresets] = useState(() => getCarrierPresets());
+  const [presets, setPresets] = useState<number[]>([]);
 
-  const handleAddPreset = () => {
+  useEffect(() => {
+    getCarrierPresets().then(setPresets);
+  }, []);
+
+  const handleAddPreset = async () => {
     if (carrierRate <= 0 || presets.includes(carrierRate)) return;
     const updated = [...presets, carrierRate].sort((a, b) => a - b);
     setPresets(updated);
-    saveCarrierPresets(updated);
+    await saveCarrierPresets(updated);
   };
 
-  const handleRemovePreset = (value: number) => {
+  const handleRemovePreset = async (value: number) => {
     const updated = presets.filter((p) => p !== value);
     setPresets(updated);
-    saveCarrierPresets(updated);
+    await saveCarrierPresets(updated);
   };
 
   return (

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { getTankPresets, saveTankPresets } from '../../utils/storageService';
 
 interface TankSetupCardProps {
@@ -7,19 +7,23 @@ interface TankSetupCardProps {
 }
 
 const TankSetupCard: React.FC<TankSetupCardProps> = ({ tankSize, onTankSizeChange }) => {
-  const [presets, setPresets] = useState(() => getTankPresets());
+  const [presets, setPresets] = useState<number[]>([]);
 
-  const handleAddPreset = () => {
+  useEffect(() => {
+    getTankPresets().then(setPresets);
+  }, []);
+
+  const handleAddPreset = async () => {
     if (tankSize <= 0 || presets.includes(tankSize)) return;
     const updated = [...presets, tankSize].sort((a, b) => a - b);
     setPresets(updated);
-    saveTankPresets(updated);
+    await saveTankPresets(updated);
   };
 
-  const handleRemovePreset = (value: number) => {
+  const handleRemovePreset = async (value: number) => {
     const updated = presets.filter((p) => p !== value);
     setPresets(updated);
-    saveTankPresets(updated);
+    await saveTankPresets(updated);
   };
 
   return (

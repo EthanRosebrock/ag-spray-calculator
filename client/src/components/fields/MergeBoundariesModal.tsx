@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Field } from '../../types';
 import { parseGeoJSONFeatures } from '../../utils/importService';
 import { matchFeaturesToFields, type GeoJSONFeatureData, type MatchResult } from '../../utils/boundaryMatcher';
@@ -36,7 +36,11 @@ const MergeBoundariesModal: React.FC<MergeBoundariesModalProps> = ({ onMerge, on
   // Apply results
   const [applyCount, setApplyCount] = useState(0);
 
-  const fields = useMemo(() => getFields(), []);
+  const [fields, setFieldsList] = useState<Field[]>([]);
+
+  useEffect(() => {
+    getFields().then(setFieldsList);
+  }, []);
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -127,9 +131,9 @@ const MergeBoundariesModal: React.FC<MergeBoundariesModalProps> = ({ onMerge, on
     return dupes;
   }, [features, overrides, matchResults]);
 
-  const handleApply = () => {
+  const handleApply = async () => {
     let count = 0;
-    const currentFields = getFields();
+    const currentFields = await getFields();
 
     for (const feature of features) {
       const fieldId = getEffectiveFieldId(feature.index);
@@ -149,7 +153,7 @@ const MergeBoundariesModal: React.FC<MergeBoundariesModalProps> = ({ onMerge, on
         updated.acres = feature.acres;
       }
 
-      saveField(updated);
+      await saveField(updated);
       count++;
     }
 

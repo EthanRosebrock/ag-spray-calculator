@@ -96,7 +96,7 @@ const DrawControls: React.FC<DrawControlsProps> = ({ active, onFieldCreated }) =
     setTempMarkers([]);
   };
 
-  const handleSaveField = () => {
+  const handleSaveField = async () => {
     if (!fieldName.trim() || vertices.length < 3) return;
 
     const boundary = vertices;
@@ -113,7 +113,7 @@ const DrawControls: React.FC<DrawControlsProps> = ({ active, onFieldCreated }) =
       boundary,
     };
 
-    saveField(field);
+    await saveField(field);
     clearTemp();
     setVertices([]);
     setFieldName('');

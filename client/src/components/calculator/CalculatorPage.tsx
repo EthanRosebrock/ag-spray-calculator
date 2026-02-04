@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useCalculator } from '../../hooks/useCalculator';
 import { useLoadSplitter } from '../../hooks/useLoadSplitter';
 import { useWeather } from '../../hooks/useWeather';
@@ -11,7 +11,7 @@ import LoadScheduleTable from './LoadScheduleTable';
 import MixingInstructions from './MixingInstructions';
 import ContainerBreakdownSection from './ContainerBreakdown';
 import RecordModal from '../records/RecordModal';
-import { SprayRecord, SprayRecordProduct } from '../../types';
+import { Field, SprayRecord, SprayRecordProduct } from '../../types';
 import { saveRecord, getFields } from '../../utils/storageService';
 
 const CalculatorPage: React.FC = () => {
@@ -20,7 +20,11 @@ const CalculatorPage: React.FC = () => {
   const [showRecordModal, setShowRecordModal] = useState(false);
   const [recordSaved, setRecordSaved] = useState(false);
   const [selectedFieldIds, setSelectedFieldIds] = useState<string[]>([]);
-  const fields = useMemo(() => getFields(), []);
+  const [fields, setFields] = useState<Field[]>([]);
+
+  useEffect(() => {
+    getFields().then(setFields);
+  }, []);
 
   const toggleField = (id: string) => {
     setSelectedFieldIds((prev) => {
@@ -76,8 +80,8 @@ const CalculatorPage: React.FC = () => {
     };
   };
 
-  const handleSaveRecord = (record: SprayRecord) => {
-    saveRecord(record);
+  const handleSaveRecord = async (record: SprayRecord) => {
+    await saveRecord(record);
     setShowRecordModal(false);
     setRecordSaved(true);
     setTimeout(() => setRecordSaved(false), 3000);

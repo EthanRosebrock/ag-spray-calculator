@@ -56,32 +56,27 @@ const PinManager: React.FC<PinManagerProps> = ({ active, onPinsChanged }) => {
   const activeRef = useRef(active);
   activeRef.current = active;
 
-  // Snapshot-based undo: stores full pin arrays. On undo, write snapshot back
-  // to localStorage and reload. A companion counter state forces re-renders
-  // so that the Undo button visibility stays in sync with the ref.
+  // Undo stack: stores full pin arrays for snapshot-based undo
   const undoRef = useRef<SavedPin[][]>([]);
   const [undoCount, setUndoCount] = useState(0);
 
-  // Snapshot current pins into undo stack (call BEFORE any mutation)
-  const snapshotUndo = useCallback(() => {
-    undoRef.current.push(getPins());
+  const snapshotUndo = useCallback(async () => {
+    const currentPins = await getPins();
+    undoRef.current.push(currentPins);
     if (undoRef.current.length > MAX_UNDO) undoRef.current.splice(0, undoRef.current.length - MAX_UNDO);
     setUndoCount(undoRef.current.length);
   }, []);
 
-  const handleUndo = useCallback(() => {
+  const handleUndo = useCallback(async () => {
     if (undoRef.current.length === 0) return;
     const snapshot = undoRef.current.pop()!;
     setUndoCount(undoRef.current.length);
-    replaceAllPins(snapshot);
+    await replaceAllPins(snapshot);
     setPins(snapshot);
     onPinsChanged();
   }, [onPinsChanged]);
 
   // Prevent Leaflet from stealing scroll/touch on the panel.
-  // Use a callback ref so we attach Leaflet event blockers as soon as the
-  // DOM element appears (the panel is only rendered when active === true,
-  // so a useEffect with [] deps would miss it on first mount).
   const panelRef = useRef<HTMLDivElement>(null);
   const panelCallbackRef = useCallback((el: HTMLDivElement | null) => {
     panelRef.current = el;
@@ -104,7 +99,10 @@ const PinManager: React.FC<PinManagerProps> = ({ active, onPinsChanged }) => {
     return () => window.removeEventListener('keydown', handler);
   }, [handleUndo]);
 
-  const reloadPins = () => { setPins(getPins()); };
+  const reloadPins = async () => {
+    const loaded = await getPins();
+    setPins(loaded);
+  };
 
   useEffect(() => { reloadPins(); }, []);
 
@@ -158,13 +156,13 @@ const PinManager: React.FC<PinManagerProps> = ({ active, onPinsChanged }) => {
       marker.bindPopup(popupDiv);
 
       if (active) {
-        marker.on('dragend', () => {
+        marker.on('dragend', async () => {
           const pos = marker.getLatLng();
-          snapshotUndo();
+          await snapshotUndo();
           const updated = { ...pin, latitude: pos.lat, longitude: pos.lng };
-          savePin(updated);
-          if (updated.isHome) syncHomeToFarmLocation(updated);
-          reloadPins();
+          await savePin(updated);
+          if (updated.isHome) await syncHomeToFarmLocation(updated);
+          await reloadPins();
           onPinsChanged();
         });
       }
@@ -176,11 +174,11 @@ const PinManager: React.FC<PinManagerProps> = ({ active, onPinsChanged }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pins, map, active]);
 
-  // Map click → place pin
+  // Map click -> place pin
   useEffect(() => {
     if (!active || !placing) return;
-    const handler = (e: L.LeafletMouseEvent) => {
-      snapshotUndo();
+    const handler = async (e: L.LeafletMouseEvent) => {
+      await snapshotUndo();
       const pin: SavedPin = {
         id: Date.now().toString(),
         name: `Pin ${pinsRef.current.length + 1}`,
@@ -188,64 +186,64 @@ const PinManager: React.FC<PinManagerProps> = ({ active, onPinsChanged }) => {
         longitude: e.latlng.lng,
         color: placingColor,
       };
-      savePin(pin);
-      reloadPins();
+      await savePin(pin);
+      await reloadPins();
       onPinsChanged();
     };
     map.on('click', handler);
     return () => { map.off('click', handler); };
   }, [active, placing, map, placingColor, onPinsChanged, snapshotUndo]);
 
-  const syncHomeToFarmLocation = (pin: SavedPin) => {
-    const farm = LocationWeatherService.getFarmLocation();
-    LocationWeatherService.setFarmLocation({ ...farm, latitude: pin.latitude, longitude: pin.longitude });
+  const syncHomeToFarmLocation = async (pin: SavedPin) => {
+    const farm = await LocationWeatherService.getFarmLocation();
+    await LocationWeatherService.setFarmLocation({ ...farm, latitude: pin.latitude, longitude: pin.longitude });
   };
 
-  const doDeletePin = (id: string) => {
-    snapshotUndo();
-    deletePin(id);
-    reloadPins();
+  const doDeletePin = async (id: string) => {
+    await snapshotUndo();
+    await deletePin(id);
+    await reloadPins();
     onPinsChanged();
     setConfirmDeleteId(null);
   };
 
-  const doSetAsHome = (pin: SavedPin) => {
-    snapshotUndo();
-    const allPins = getPins();
+  const doSetAsHome = async (pin: SavedPin) => {
+    await snapshotUndo();
+    const allPins = await getPins();
     for (const p of allPins) {
-      if (p.isHome && p.id !== pin.id) savePin({ ...p, isHome: false });
+      if (p.isHome && p.id !== pin.id) await savePin({ ...p, isHome: false });
     }
-    savePin({ ...pin, isHome: true });
-    syncHomeToFarmLocation(pin);
-    reloadPins();
+    await savePin({ ...pin, isHome: true });
+    await syncHomeToFarmLocation(pin);
+    await reloadPins();
     onPinsChanged();
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!editingPin) return;
     const existing = pins.find((p) => p.id === editingPin);
     if (!existing) return;
-    snapshotUndo();
+    await snapshotUndo();
     const updated: SavedPin = {
       ...existing,
       name: editForm.name.trim() || existing.name,
       notes: editForm.notes.trim() || undefined,
       color: editForm.color || existing.color,
     };
-    savePin(updated);
-    if (updated.isHome) syncHomeToFarmLocation(updated);
+    await savePin(updated);
+    if (updated.isHome) await syncHomeToFarmLocation(updated);
     setEditingPin(null);
-    reloadPins();
+    await reloadPins();
     onPinsChanged();
   };
 
-  const handleAddHomeFromFarm = () => {
-    const farm = LocationWeatherService.getFarmLocation();
+  const handleAddHomeFromFarm = async () => {
+    const farm = await LocationWeatherService.getFarmLocation();
     if (!farm.latitude || !farm.longitude) return;
-    snapshotUndo();
-    const allPins = getPins();
+    await snapshotUndo();
+    const allPins = await getPins();
     for (const p of allPins) {
-      if (p.isHome) savePin({ ...p, isHome: false });
+      if (p.isHome) await savePin({ ...p, isHome: false });
     }
     const homePin: SavedPin = {
       id: Date.now().toString(),
@@ -255,8 +253,8 @@ const PinManager: React.FC<PinManagerProps> = ({ active, onPinsChanged }) => {
       color: '#dc2626',
       isHome: true,
     };
-    savePin(homePin);
-    reloadPins();
+    await savePin(homePin);
+    await reloadPins();
     onPinsChanged();
     map.flyTo([homePin.latitude, homePin.longitude], 15, { duration: 1 });
   };

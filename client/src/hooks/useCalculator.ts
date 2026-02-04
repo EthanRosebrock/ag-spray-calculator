@@ -1,17 +1,33 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { TankMixProduct, Product } from '../types';
 import { getCalculatorDefaults, saveCalculatorDefaults } from '../utils/storageService';
 import { convertRateToAmount } from '../utils/loadCalculations';
 
 export function useCalculator() {
-  const [defaults] = useState(() => getCalculatorDefaults());
-  const [tankSize, setTankSizeState] = useState(defaults.tankSize);
-  const [carrierRate, setCarrierRateState] = useState(defaults.carrierRate);
-  const [acres, setAcresState] = useState(defaults.acres);
+  const [tankSize, setTankSizeState] = useState(300);
+  const [carrierRate, setCarrierRateState] = useState(20);
+  const [acres, setAcresState] = useState(160);
   const [selectedProducts, setSelectedProducts] = useState<TankMixProduct[]>([]);
+  const [defaultsLoaded, setDefaultsLoaded] = useState(false);
+  const initializedRef = useRef(false);
 
-  // Persist defaults when values change
+  // Load defaults from Supabase on mount
   useEffect(() => {
+    let cancelled = false;
+    getCalculatorDefaults().then((defaults) => {
+      if (cancelled) return;
+      setTankSizeState(defaults.tankSize);
+      setCarrierRateState(defaults.carrierRate);
+      setAcresState(defaults.acres);
+      setDefaultsLoaded(true);
+      initializedRef.current = true;
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  // Persist defaults when values change (skip initial load)
+  useEffect(() => {
+    if (!initializedRef.current) return;
     saveCalculatorDefaults({ tankSize, carrierRate, acres });
   }, [tankSize, carrierRate, acres]);
 
@@ -118,5 +134,6 @@ export function useCalculator() {
     addProduct,
     updateProductRate,
     removeProduct,
+    defaultsLoaded,
   };
 }

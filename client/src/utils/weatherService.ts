@@ -95,7 +95,7 @@ export class WeatherService {
 
   static async getCurrentWeather(coords?: { latitude: number; longitude: number }): Promise<WeatherData> {
     try {
-      const loc = coords || LocationWeatherService.getFarmLocation();
+      const loc = coords || LocationWeatherService.getFarmLocationSync();
       const response = await fetch(`/api/weather/location?lat=${loc.latitude}&lon=${loc.longitude}`);
       const data = await response.json();
       return this.enhanceWeatherData(data);
@@ -113,7 +113,7 @@ export class WeatherService {
       ...rawData,
       gustFactor,
       temperatureInversion,
-      location: rawData.location || LocationWeatherService.getFarmLocation(),
+      location: rawData.location || LocationWeatherService.getFarmLocationSync(),
       elevation: rawData.elevation || 700,
       source: rawData.source || 'Weather Service',
       driftRisk: this.calculateDriftRisk(rawData, gustFactor, temperatureInversion),
@@ -202,7 +202,7 @@ export class WeatherService {
       sprayRecommendation: 'acceptable',
       temperatureInversion: false,
       gustFactor: 4,
-      location: LocationWeatherService.getFarmLocation(),
+      location: LocationWeatherService.getFarmLocationSync(),
       source: 'Mock Weather Service',
       elevation: 700
     };
@@ -308,28 +308,30 @@ export class LocationWeatherService {
     timezone: 'America/New_York'
   };
 
-  private static farmLocation: LocationData = LocationWeatherService.DEFAULT_FARM_LOCATION;
   private static fieldLocations: FieldLocation[] = [];
 
-  static setFarmLocation(location: LocationData) {
-    this.farmLocation = location;
-    localStorage.setItem('farmLocation', JSON.stringify(location));
+  static async setFarmLocation(location: LocationData) {
+    const { saveFarmLocation } = await import('./storageService');
+    await saveFarmLocation(location);
   }
 
-  static getFarmLocation(): LocationData {
-    const stored = localStorage.getItem('farmLocation');
-    if (stored) {
-      try {
-        return JSON.parse(stored);
-      } catch {
-        return this.DEFAULT_FARM_LOCATION;
-      }
-    }
-    return this.farmLocation;
+  /** Async version — reads from Supabase first, falls back to localStorage */
+  static async getFarmLocation(): Promise<LocationData> {
+    const { getFarmLocation: getFL } = await import('./storageService');
+    return getFL();
+  }
+
+  /** Sync version — reads from localStorage cache only (for non-async code paths) */
+  static getFarmLocationSync(): LocationData {
+    try {
+      const raw = localStorage.getItem('farmLocation');
+      if (raw) return JSON.parse(raw);
+    } catch {}
+    return this.DEFAULT_FARM_LOCATION;
   }
 
   static async getCurrentWeatherByLocation(location?: LocationData): Promise<WeatherData> {
-    const targetLocation = location || this.getFarmLocation();
+    const targetLocation = location || this.getFarmLocationSync();
 
     try {
       const response = await fetch(`/api/weather/location?lat=${targetLocation.latitude}&lon=${targetLocation.longitude}`);
@@ -350,13 +352,14 @@ export class LocationWeatherService {
     const field = this.fieldLocations.find(f => f.id === fieldId);
 
     if (field) {
+      const farm = this.getFarmLocationSync();
       const fieldLocation: LocationData = {
         latitude: field.latitude,
         longitude: field.longitude,
-        city: this.farmLocation.city,
-        state: this.farmLocation.state,
-        county: this.farmLocation.county,
-        timezone: this.farmLocation.timezone
+        city: farm.city,
+        state: farm.state,
+        county: farm.county,
+        timezone: farm.timezone
       };
 
       const weather = await this.getCurrentWeatherByLocation(fieldLocation);
@@ -384,7 +387,7 @@ export class LocationWeatherService {
   }
 
   static async getNearbyWeatherStations(location?: LocationData): Promise<WeatherStation[]> {
-    const targetLocation = location || this.getFarmLocation();
+    const targetLocation = location || this.getFarmLocationSync();
 
     try {
       const response = await fetch(`/api/weather/stations?lat=${targetLocation.latitude}&lon=${targetLocation.longitude}&radius=25`);

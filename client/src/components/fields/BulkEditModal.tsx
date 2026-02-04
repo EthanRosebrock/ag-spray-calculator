@@ -23,13 +23,13 @@ const BulkEditModal: React.FC<BulkEditModalProps> = ({ selectedIds, onSave, onCl
 
   const hasChanges = applyCrop || applyFarmName || applyCarrierRate || applyMicroclimate;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!hasChanges) return;
 
     setSaving(true);
 
-    const fields = getFields();
+    const fields = await getFields();
     for (const field of fields) {
       if (!selectedIds.has(field.id)) continue;
 
@@ -41,7 +41,7 @@ const BulkEditModal: React.FC<BulkEditModalProps> = ({ selectedIds, onSave, onCl
         updated.microclimate = (microclimate || undefined) as Field['microclimate'];
       }
 
-      saveField(updated);
+      await saveField(updated);
     }
 
     setSaving(false);

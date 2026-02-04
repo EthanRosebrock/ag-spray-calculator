@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Product, TankMixProduct } from '../../types';
 import { getProducts, deleteProduct } from '../../utils/storageService';
 import { getBaseDisplayUnit } from '../../utils/unitConstants';
@@ -22,42 +22,45 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
   onUpdateRate,
   onRemoveProduct,
 }) => {
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [productLibrary, setProductLibrary] = useState<Product[]>([]);
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const productLibrary = useMemo(() => getProducts(), [refreshKey]);
+  const reloadProducts = useCallback(async () => {
+    const p = await getProducts();
+    setProductLibrary(p);
+  }, []);
+
+  useEffect(() => { reloadProducts(); }, [reloadProducts]);
 
   const handleProductSaved = useCallback(
     (product: Product) => {
       setShowAddProduct(false);
-      setRefreshKey((k) => k + 1);
+      reloadProducts();
       onAddProduct(product);
     },
-    [onAddProduct]
+    [onAddProduct, reloadProducts]
   );
 
   const handleEditSaved = useCallback(
     (_product: Product) => {
       setEditingProduct(null);
-      setRefreshKey((k) => k + 1);
+      reloadProducts();
     },
-    []
+    [reloadProducts]
   );
 
   const handleDelete = useCallback(
-    (e: React.MouseEvent, product: Product) => {
+    async (e: React.MouseEvent, product: Product) => {
       e.stopPropagation();
-      deleteProduct(product.id);
-      // Remove from tank mix if selected
+      await deleteProduct(product.id);
       const selectedIdx = selectedProducts.findIndex((p) => p.product.id === product.id);
       if (selectedIdx >= 0) {
         onRemoveProduct(selectedIdx);
       }
-      setRefreshKey((k) => k + 1);
+      reloadProducts();
     },
-    [selectedProducts, onRemoveProduct]
+    [selectedProducts, onRemoveProduct, reloadProducts]
   );
 
   const handleEdit = useCallback(

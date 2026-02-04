@@ -105,7 +105,7 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({ active }) => {
     return () => window.removeEventListener('keydown', handler);
   }, [handleUndo]);
 
-  useEffect(() => { setRoutes(getRoutes()); }, []);
+  useEffect(() => { getRoutes().then(setRoutes); }, []);
 
   // Render markers on map
   useEffect(() => {
@@ -192,15 +192,16 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({ active }) => {
     setLoadedRouteId(null);
   };
 
-  const handleSaveRoute = () => {
+  const handleSaveRoute = async () => {
     if (!routeName.trim() || waypoints.length < 2) return;
-    saveRoute({
+    await saveRoute({
       id: loadedRouteId || Date.now().toString(),
       name: routeName.trim(),
       waypoints,
       createdAt: new Date().toISOString(),
     });
-    setRoutes(getRoutes());
+    const updated = await getRoutes();
+    setRoutes(updated);
     setRouteName('');
     setLoadedRouteId(null);
   };
@@ -218,9 +219,10 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({ active }) => {
     }
   };
 
-  const handleDeleteRoute = (id: string) => {
-    deleteRoute(id);
-    setRoutes(getRoutes());
+  const handleDeleteRoute = async (id: string) => {
+    await deleteRoute(id);
+    const updated = await getRoutes();
+    setRoutes(updated);
     setConfirmDeleteId(null);
     if (loadedRouteId === id) { setLoadedRouteId(null); setRouteName(''); }
   };

@@ -25,7 +25,10 @@ const FieldsPage: React.FC = () => {
   // Multi-select state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  const reload = () => setFields(getFields());
+  const reload = async () => {
+    const f = await getFields();
+    setFields(f);
+  };
 
   useEffect(() => {
     reload();
@@ -107,36 +110,37 @@ const FieldsPage: React.FC = () => {
   };
 
   // Handlers
-  const handleSave = (field: Field) => {
-    saveField(field);
-    reload();
+  const handleSave = async (field: Field) => {
+    await saveField(field);
+    await reload();
     setShowFieldModal(false);
     setEditingField(null);
   };
 
-  const handleDelete = (id: string) => {
-    deleteField(id);
-    reload();
+  const handleDelete = async (id: string) => {
+    await deleteField(id);
+    await reload();
     setDeleteConfirm(null);
   };
 
-  const handleImport = (imported: Field[]) => {
-    imported.forEach((f) => saveField(f));
-    reload();
+  const handleImport = async (imported: Field[]) => {
+    for (const f of imported) await saveField(f);
+    await reload();
     setShowImportModal(false);
   };
 
-  const handleBulkDelete = () => {
-    selectedIds.forEach((id) => deleteField(id));
+  const handleBulkDelete = async () => {
+    const ids = Array.from(selectedIds);
+    for (const id of ids) await deleteField(id);
     setSelectedIds(new Set());
     setBulkDeleteConfirm(false);
-    reload();
+    await reload();
   };
 
-  const handleBulkEditSave = () => {
+  const handleBulkEditSave = async () => {
     setShowBulkEditModal(false);
     setSelectedIds(new Set());
-    reload();
+    await reload();
   };
 
   const handleMergeDone = () => {

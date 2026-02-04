@@ -36,33 +36,37 @@ const MapPage: React.FC = () => {
   const [showLabels, setShowLabels] = useState(true);
   const [mapRef, setMapRef] = useState<L.Map | null>(null);
 
-  const loadHomeTarget = () => {
-    // Check saved pins for home pin first
-    const pins = getPins();
+  const loadHomeTarget = async () => {
+    const pins = await getPins();
     const homePin = pins.find((p) => p.isHome);
     if (homePin) {
       setHomeTarget([homePin.latitude, homePin.longitude]);
       return;
     }
-    // Fall back to farm location
-    const farm = LocationWeatherService.getFarmLocation();
+    const farm = await LocationWeatherService.getFarmLocation();
     if (farm.latitude && farm.longitude) {
       setHomeTarget([farm.latitude, farm.longitude]);
     }
   };
 
   useEffect(() => {
-    setFields(getFields());
+    (async () => {
+      const loadedFields = await getFields();
+      setFields(loadedFields);
 
-    const farm = LocationWeatherService.getFarmLocation();
-    if (farm.latitude && farm.longitude) {
-      setCenter([farm.latitude, farm.longitude]);
-    }
+      const farm = await LocationWeatherService.getFarmLocation();
+      if (farm.latitude && farm.longitude) {
+        setCenter([farm.latitude, farm.longitude]);
+      }
 
-    loadHomeTarget();
+      await loadHomeTarget();
+    })();
   }, []);
 
-  const reloadFields = () => setFields(getFields());
+  const reloadFields = async () => {
+    const f = await getFields();
+    setFields(f);
+  };
 
   const handlePinsChanged = () => {
     loadHomeTarget();

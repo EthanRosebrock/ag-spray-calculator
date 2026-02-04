@@ -14,17 +14,19 @@ export function useWeather() {
   // Resolve geolocation once on mount
   useEffect(() => {
     let cancelled = false;
-    getCurrentPosition().then((pos) => {
+    (async () => {
+      const pos = await getCurrentPosition();
       if (cancelled) return;
       if (pos) {
         coordsRef.current = pos;
         setLocationSource('gps');
       } else {
-        const farm = LocationWeatherService.getFarmLocation();
+        const farm = await LocationWeatherService.getFarmLocation();
+        if (cancelled) return;
         coordsRef.current = { latitude: farm.latitude, longitude: farm.longitude };
         setLocationSource('farm');
       }
-    });
+    })();
     return () => { cancelled = true; };
   }, []);
 
