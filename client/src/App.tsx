@@ -21,14 +21,15 @@ const NAV_ITEMS: { key: View; label: string }[] = [
 
 function App() {
   const [view, setView] = useState<View>('calculator');
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     migrateLocalStorageToSupabase().then((didMigrate) => {
       if (didMigrate) {
         console.log('Migrated localStorage data to Supabase');
-        window.location.reload();
       }
-    });
+      setReady(true);
+    }).catch(() => setReady(true));
   }, []);
 
   const renderPage = () => {
@@ -72,7 +73,11 @@ function App() {
       </header>
 
       <main className={`flex-1 min-h-0 ${view === 'map' ? '' : 'container mx-auto px-4 py-4 sm:py-8 overflow-y-auto'}`}>
-        {renderPage()}
+        {ready ? renderPage() : (
+          <div className="flex items-center justify-center h-full">
+            <p className="text-gray-500">Loading...</p>
+          </div>
+        )}
       </main>
     </div>
   );

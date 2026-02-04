@@ -195,9 +195,13 @@ export async function getFields(): Promise<Field[]> {
     if (error || !data) {
       return loadJSON<Field[]>(KEYS.fields) || [];
     }
-    const fields = data.map((row) => toCamelCase(row) as unknown as Field);
-    saveJSON(KEYS.fields, fields);
-    return fields;
+    if (data.length > 0) {
+      const fields = data.map((row) => toCamelCase(row) as unknown as Field);
+      saveJSON(KEYS.fields, fields);
+      return fields;
+    }
+    // Supabase empty — don't overwrite localStorage
+    return loadJSON<Field[]>(KEYS.fields) || [];
   } catch {
     return loadJSON<Field[]>(KEYS.fields) || [];
   }
@@ -297,9 +301,12 @@ export async function getRecords(): Promise<SprayRecord[]> {
     if (error || !data) {
       return loadJSON<SprayRecord[]>(KEYS.records) || [];
     }
-    const records = data.map((row) => toCamelCase(row) as unknown as SprayRecord);
-    saveJSON(KEYS.records, records);
-    return records;
+    if (data.length > 0) {
+      const records = data.map((row) => toCamelCase(row) as unknown as SprayRecord);
+      saveJSON(KEYS.records, records);
+      return records;
+    }
+    return loadJSON<SprayRecord[]>(KEYS.records) || [];
   } catch {
     return loadJSON<SprayRecord[]>(KEYS.records) || [];
   }
@@ -328,9 +335,12 @@ export async function getRoutes(): Promise<TenderRoute[]> {
     if (error || !data) {
       return loadJSON<TenderRoute[]>(KEYS.routes) || [];
     }
-    const routes = data.map((row) => toCamelCase(row) as unknown as TenderRoute);
-    saveJSON(KEYS.routes, routes);
-    return routes;
+    if (data.length > 0) {
+      const routes = data.map((row) => toCamelCase(row) as unknown as TenderRoute);
+      saveJSON(KEYS.routes, routes);
+      return routes;
+    }
+    return loadJSON<TenderRoute[]>(KEYS.routes) || [];
   } catch {
     return loadJSON<TenderRoute[]>(KEYS.routes) || [];
   }
@@ -359,9 +369,12 @@ export async function getPins(): Promise<SavedPin[]> {
     if (error || !data) {
       return loadJSON<SavedPin[]>(KEYS.pins) || [];
     }
-    const pins = data.map((row) => toCamelCase(row) as unknown as SavedPin);
-    saveJSON(KEYS.pins, pins);
-    return pins;
+    if (data.length > 0) {
+      const pins = data.map((row) => toCamelCase(row) as unknown as SavedPin);
+      saveJSON(KEYS.pins, pins);
+      return pins;
+    }
+    return loadJSON<SavedPin[]>(KEYS.pins) || [];
   } catch {
     return loadJSON<SavedPin[]>(KEYS.pins) || [];
   }
