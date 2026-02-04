@@ -412,3 +412,83 @@ export async function saveFarmLocation(location: LocationData): Promise<void> {
 export function getFarmLocationSync(): LocationData {
   return loadJSON<LocationData>(KEYS.farmLocation) || DEFAULT_FARM_LOCATION;
 }
+
+// --- One-time localStorage → Supabase migration ---
+const MIGRATION_KEY = 'agrispray_supabase_migrated';
+
+export async function migrateLocalStorageToSupabase(): Promise<boolean> {
+  if (localStorage.getItem(MIGRATION_KEY)) return false;
+
+  let migrated = false;
+
+  // Products
+  const products = loadJSON<Product[]>(KEYS.products);
+  if (products && products.length > 0) {
+    const rows = products.map((p) => toSnakeCase(p as any));
+    await supabase.from('products').upsert(rows);
+    migrated = true;
+  }
+
+  // Fields
+  const fields = loadJSON<Field[]>(KEYS.fields);
+  if (fields && fields.length > 0) {
+    const rows = fields.map((f) => toSnakeCase(f as any));
+    await supabase.from('fields').upsert(rows);
+    migrated = true;
+  }
+
+  // Spray Records
+  const records = loadJSON<SprayRecord[]>(KEYS.records);
+  if (records && records.length > 0) {
+    const rows = records.map((r) => toSnakeCase(r as any));
+    await supabase.from('spray_records').upsert(rows);
+    migrated = true;
+  }
+
+  // Tender Routes
+  const routes = loadJSON<TenderRoute[]>(KEYS.routes);
+  if (routes && routes.length > 0) {
+    const rows = routes.map((r) => toSnakeCase(r as any));
+    await supabase.from('tender_routes').upsert(rows);
+    migrated = true;
+  }
+
+  // Saved Pins
+  const pins = loadJSON<SavedPin[]>(KEYS.pins);
+  if (pins && pins.length > 0) {
+    const rows = pins.map((p) => toSnakeCase(p as any));
+    await supabase.from('saved_pins').upsert(rows);
+    migrated = true;
+  }
+
+  // Calculator Defaults
+  const calcDefaults = loadJSON<CalculatorDefaults>(KEYS.calculatorDefaults);
+  if (calcDefaults) {
+    await supabase.from('settings').upsert({ key: 'calculator_defaults', value: calcDefaults });
+    migrated = true;
+  }
+
+  // Tank Presets
+  const tankPresets = loadJSON<number[]>(KEYS.tankPresets);
+  if (tankPresets) {
+    await supabase.from('settings').upsert({ key: 'tank_presets', value: tankPresets });
+    migrated = true;
+  }
+
+  // Carrier Presets
+  const carrierPresets = loadJSON<number[]>(KEYS.carrierPresets);
+  if (carrierPresets) {
+    await supabase.from('settings').upsert({ key: 'carrier_presets', value: carrierPresets });
+    migrated = true;
+  }
+
+  // Farm Location
+  const farmLoc = loadJSON<LocationData>(KEYS.farmLocation);
+  if (farmLoc) {
+    await supabase.from('settings').upsert({ key: 'farm_location', value: farmLoc });
+    migrated = true;
+  }
+
+  localStorage.setItem(MIGRATION_KEY, new Date().toISOString());
+  return migrated;
+}

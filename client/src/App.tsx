@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import CalculatorPage from './components/calculator/CalculatorPage';
 import WeatherPage from './components/weather/WeatherPage';
 import RecordsPage from './components/records/RecordsPage';
 import FieldsPage from './components/fields/FieldsPage';
 import MapPage from './components/map/MapPage';
 import SettingsPage from './components/settings/SettingsPage';
+import { migrateLocalStorageToSupabase } from './utils/storageService';
 import './index.css';
 
 type View = 'calculator' | 'weather' | 'records' | 'fields' | 'map' | 'settings';
@@ -20,6 +21,15 @@ const NAV_ITEMS: { key: View; label: string }[] = [
 
 function App() {
   const [view, setView] = useState<View>('calculator');
+
+  useEffect(() => {
+    migrateLocalStorageToSupabase().then((didMigrate) => {
+      if (didMigrate) {
+        console.log('Migrated localStorage data to Supabase');
+        window.location.reload();
+      }
+    });
+  }, []);
 
   const renderPage = () => {
     switch (view) {
