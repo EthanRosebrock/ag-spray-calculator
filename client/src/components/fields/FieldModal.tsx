@@ -11,6 +11,7 @@ interface FieldModalProps {
 const FieldModal: React.FC<FieldModalProps> = ({ field, onSave, onClose }) => {
   const [form, setForm] = useState<Partial<Field>>({
     name: field?.name || '',
+    fieldNumber: field?.fieldNumber || '',
     acres: field?.acres || 0,
     carrierRate: field?.carrierRate || 20,
     crop: field?.crop || '',
@@ -32,6 +33,7 @@ const FieldModal: React.FC<FieldModalProps> = ({ field, onSave, onClose }) => {
     const saved: Field = {
       id: field?.id || Date.now().toString(),
       name: form.name,
+      fieldNumber: form.fieldNumber || undefined,
       acres: form.acres || 0,
       carrierRate: form.carrierRate || 20,
       crop: form.crop || undefined,
@@ -70,15 +72,27 @@ const FieldModal: React.FC<FieldModalProps> = ({ field, onSave, onClose }) => {
       <div className="bg-white rounded-lg max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
         <h2 className="text-xl font-semibold mb-4">{field ? 'Edit Field' : 'Add Field'}</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Field Name *</label>
-            <input
-              type="text"
-              className="input-field"
-              value={form.name || ''}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              required
-            />
+          <div className="grid grid-cols-3 gap-3">
+            <div className="col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Field Name *</label>
+              <input
+                type="text"
+                className="input-field"
+                value={form.name || ''}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Field #</label>
+              <input
+                type="text"
+                className="input-field"
+                value={form.fieldNumber || ''}
+                onChange={(e) => setForm({ ...form, fieldNumber: e.target.value })}
+                placeholder="e.g. 13E"
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">

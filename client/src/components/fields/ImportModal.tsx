@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Field } from '../../types';
-import { parseCSV, parseGeoJSON } from '../../utils/importService';
+import { parseCSV, parseExcel, parseGeoJSON } from '../../utils/importService';
 
 interface ImportModalProps {
   onImport: (fields: Field[]) => void;
@@ -25,8 +25,16 @@ const ImportModal: React.FC<ImportModalProps> = ({ onImport, onClose }) => {
     setFileName(file.name);
 
     try {
-      const text = await file.text();
-      const fields = mode === 'csv' ? parseCSV(text) : parseGeoJSON(text);
+      const isExcel = /\.xlsx?$/i.test(file.name);
+      let fields: Field[];
+
+      if (mode === 'csv' && isExcel) {
+        const buffer = await file.arrayBuffer();
+        fields = parseExcel(buffer);
+      } else {
+        const text = await file.text();
+        fields = mode === 'csv' ? parseCSV(text) : parseGeoJSON(text);
+      }
 
       if (fields.length === 0) {
         setError('No valid fields found in file. Check the format and try again.');
@@ -84,9 +92,9 @@ const ImportModal: React.FC<ImportModalProps> = ({ onImport, onClose }) => {
         <div className="bg-gray-50 rounded p-3 mb-4 text-sm text-gray-600">
           {mode === 'csv' ? (
             <>
-              <p className="font-medium mb-1">CSV Format</p>
+              <p className="font-medium mb-1">CSV / Excel Format</p>
               <p>Expected columns: name, acres, latitude, longitude, crop, notes</p>
-              <p className="text-xs mt-1">Column names are matched flexibly (e.g., "Field Name", "lat", "lon")</p>
+              <p className="text-xs mt-1">Supports .csv, .tsv, .txt, and .xlsx files. Column names are matched flexibly.</p>
             </>
           ) : (
             <>
@@ -102,7 +110,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ onImport, onClose }) => {
           <input
             ref={fileRef}
             type="file"
-            accept={mode === 'csv' ? '.csv' : '.json,.geojson'}
+            accept={mode === 'csv' ? '.csv,.tsv,.txt,.xlsx,.xls' : '.json,.geojson'}
             onChange={handleFile}
             className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-ag-green-50 file:text-ag-green-700 hover:file:bg-ag-green-100"
           />
@@ -126,6 +134,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ onImport, onClose }) => {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50">
                   <tr>
+                    <th className="text-left p-2 font-medium">#</th>
                     <th className="text-left p-2 font-medium">Name</th>
                     <th className="text-left p-2 font-medium">Acres</th>
                     <th className="text-left p-2 font-medium">Location</th>
@@ -138,6 +147,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ onImport, onClose }) => {
                 <tbody>
                   {parsed.map((f, i) => (
                     <tr key={i} className="border-t">
+                      <td className="p-2 text-sm text-gray-500">{f.fieldNumber || '—'}</td>
                       <td className="p-2">{f.name}</td>
                       <td className="p-2">{f.acres > 0 ? f.acres.toFixed(1) : '—'}</td>
                       <td className="p-2 text-xs">

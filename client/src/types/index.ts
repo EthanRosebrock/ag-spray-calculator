@@ -16,6 +16,7 @@ export interface UnitConfig {
 export interface Field {
   id: string;
   name: string;
+  fieldNumber?: string; // user-assigned field number (e.g. "13E", "24SW")
   acres: number;
   carrierRate: number; // gal/acre, default 20
   notes?: string;
@@ -83,8 +84,10 @@ export interface LoadSplitConfig {
 export interface SprayRecord {
   id: string;
   date: string;                   // ISO date string
-  fieldId?: string;               // links to Field
-  fieldName: string;              // denormalized for display
+  fieldId?: string;               // links to Field (legacy single-field)
+  fieldName: string;              // denormalized for display (comma-joined if multiple)
+  fieldIds?: string[];            // links to multiple Fields
+  fieldNames?: string[];          // denormalized names for each selected field
   operator: string;
   tankSize: number;
   carrierRate: number;
@@ -108,6 +111,16 @@ export interface SprayRecordProduct {
   unit: string;
   rateBasis: 'per_acre' | 'per_100_gal';
   totalAmount: number;
+}
+
+export interface SavedPin {
+  id: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+  color: string;          // hex color e.g. '#dc2626'
+  notes?: string;
+  isHome?: boolean;
 }
 
 export interface TenderRoute {

@@ -132,7 +132,7 @@ const DrawControls: React.FC<DrawControlsProps> = ({ active, onFieldCreated }) =
 
   return (
     <>
-      <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-[1000] bg-white rounded-lg shadow-lg p-3">
+      <div className="absolute top-14 sm:top-4 left-1/2 transform -translate-x-1/2 z-[1000] bg-white rounded-lg shadow-lg p-3">
         {!drawing && !showSaveDialog && (
           <button onClick={startDrawing} className="btn-primary text-sm py-2 px-4">
             Draw Field Boundary
@@ -157,7 +157,7 @@ const DrawControls: React.FC<DrawControlsProps> = ({ active, onFieldCreated }) =
 
       {/* Save dialog */}
       {showSaveDialog && (
-        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-[1000] bg-white rounded-lg shadow-lg p-4 w-80">
+        <div className="absolute top-14 sm:top-4 left-1/2 transform -translate-x-1/2 z-[1000] bg-white rounded-lg shadow-lg p-4 w-80 max-w-[calc(100%-2rem)]">
           <h3 className="font-semibold mb-3">Save Field</h3>
           <div className="space-y-3">
             <div>

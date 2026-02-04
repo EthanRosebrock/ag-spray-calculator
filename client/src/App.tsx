@@ -39,35 +39,29 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow-sm border-b">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">AgriSpray Pro</h1>
-              <p className="text-sm text-gray-500">Professional Spray Calculator</p>
-            </div>
-
-            <nav className="flex items-center gap-1 flex-wrap">
-              {NAV_ITEMS.map((item) => (
-                <button
-                  key={item.key}
-                  onClick={() => setView(item.key)}
-                  className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
-                    view === item.key
-                      ? 'bg-ag-green-100 text-ag-green-700'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </nav>
-          </div>
+    <div className="bg-gray-50 flex flex-col h-screen" style={{ height: '100dvh' }}>
+      <header className="bg-white shadow-sm border-b flex-shrink-0">
+        <div className="flex items-center px-3 py-2 sm:px-4 sm:py-3 gap-3">
+          <h1 className="text-lg sm:text-2xl font-bold text-gray-900 flex-shrink-0">AgriSpray</h1>
+          <nav className="flex items-center gap-1 overflow-x-auto no-scrollbar flex-1 justify-end">
+            {NAV_ITEMS.map((item) => (
+              <button
+                key={item.key}
+                onClick={() => setView(item.key)}
+                className={`px-2.5 py-1.5 rounded text-sm font-medium transition-colors whitespace-nowrap flex-shrink-0 ${
+                  view === item.key
+                    ? 'bg-ag-green-100 text-ag-green-700'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </nav>
         </div>
       </header>
 
-      <main className={`container mx-auto px-4 py-8 ${view === 'map' ? 'max-w-full' : ''}`}>
+      <main className={`flex-1 min-h-0 ${view === 'map' ? '' : 'container mx-auto px-4 py-4 sm:py-8 overflow-y-auto'}`}>
         {renderPage()}
       </main>
     </div>

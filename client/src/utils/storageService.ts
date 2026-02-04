@@ -1,4 +1,4 @@
-import { Product, Field, CalculatorDefaults, SprayRecord, TenderRoute } from '../types';
+import { Product, Field, CalculatorDefaults, SprayRecord, TenderRoute, SavedPin } from '../types';
 import { ContainerType, DEFAULT_CONTAINERS } from './containerCalculations';
 import { parseLegacyUnit, formatUnitDisplay } from './unitConstants';
 
@@ -13,6 +13,7 @@ const KEYS = {
   carrierPresets: 'agrispray_carrier_presets',
   records: 'agrispray_records',
   routes: 'agrispray_routes',
+  pins: 'agrispray_pins',
   // backward-compatible keys
   farmLocation: 'farmLocation',
   fieldLocations: 'fieldLocations',
@@ -273,4 +274,29 @@ export function saveRoute(route: TenderRoute): void {
 export function deleteRoute(id: string): void {
   const routes = getRoutes().filter((r) => r.id !== id);
   saveJSON(KEYS.routes, routes);
+}
+
+// --- Saved Pins ---
+export function getPins(): SavedPin[] {
+  return loadJSON<SavedPin[]>(KEYS.pins) || [];
+}
+
+export function savePin(pin: SavedPin): void {
+  const pins = getPins();
+  const idx = pins.findIndex((p) => p.id === pin.id);
+  if (idx >= 0) {
+    pins[idx] = pin;
+  } else {
+    pins.push(pin);
+  }
+  saveJSON(KEYS.pins, pins);
+}
+
+export function deletePin(id: string): void {
+  const pins = getPins().filter((p) => p.id !== id);
+  saveJSON(KEYS.pins, pins);
+}
+
+export function replaceAllPins(pins: SavedPin[]): void {
+  saveJSON(KEYS.pins, pins);
 }

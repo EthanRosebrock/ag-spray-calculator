@@ -1,4 +1,6 @@
 import { Field } from '../types';
+import type { GeoJSONFeatureData } from './boundaryMatcher';
+import * as XLSX from 'xlsx';
 
 /**
  * Approximate area of a polygon in acres using the Shoelace formula
@@ -43,42 +45,146 @@ export function calculateCentroid(coords: [number, number][]): [number, number] 
 }
 
 /**
+ * Detect the delimiter used in a text file (tab, comma, or multi-space).
+ * Returns '\t', ',', or '  ' (multi-space sentinel).
+ */
+function detectDelimiter(lines: string[]): string {
+  // Sample up to 5 lines to detect
+  const sample = lines.slice(0, 5);
+  let tabTotal = 0;
+  let commaTotal = 0;
+  let multiSpaceTotal = 0;
+
+  for (const line of sample) {
+    tabTotal += (line.match(/\t/g) || []).length;
+    commaTotal += (line.match(/,/g) || []).length;
+    // Count runs of 2+ spaces (potential delimiters between data columns)
+    multiSpaceTotal += (line.match(/  {2,}/g) || []).length;
+  }
+
+  if (tabTotal >= commaTotal && tabTotal >= multiSpaceTotal && tabTotal > 0) return '\t';
+  if (commaTotal >= tabTotal && commaTotal >= multiSpaceTotal && commaTotal > 0) return ',';
+  if (multiSpaceTotal > 0) return '  ';
+  // Fallback: if nothing detected, try comma
+  return ',';
+}
+
+/**
+ * Split a line using multi-space delimiter (2+ consecutive spaces).
+ * Treats any run of 2+ spaces as a column separator.
+ */
+function splitMultiSpace(line: string): string[] {
+  return line.split(/  {2,}/).map((v) => v.trim()).filter((v) => v.length > 0);
+}
+
+/**
+ * Check whether the first row looks like a header (contains known column names)
+ * rather than data.
+ */
+function looksLikeHeader(values: string[]): boolean {
+  const knownHeaders = [
+    'name', 'field_name', 'fieldname', 'field name', 'field',
+    'acres', 'area', 'size',
+    'latitude', 'lat', 'longitude', 'lon', 'lng', 'long',
+    'crop', 'notes', 'number', 'field_number', 'fieldnumber', '#',
+    'farm', 'farm_name', 'farmname', 'soil', 'soil_type', 'soiltype',
+  ];
+  const matched = values.filter((v) =>
+    knownHeaders.includes(v.trim().toLowerCase().replace(/['"]/g, ''))
+  );
+  return matched.length >= 2;
+}
+
+/**
+ * Try to auto-detect column layout for headerless data.
+ * Common patterns:
+ *   field_number, name, acres
+ *   name, acres
+ */
+function inferColumns(values: string[]): Record<string, number> {
+  const colMap: Record<string, number> = {};
+
+  if (values.length >= 3) {
+    // Check if first column looks like a field number (short alphanumeric like "1", "13E", "24SW")
+    const first = values[0].trim();
+    const third = values[values.length - 1].trim();
+    if (first.length <= 6 && /^[0-9]/.test(first) && !isNaN(parseFloat(third))) {
+      // Pattern: fieldnumber, name, acres (name may span middle columns if tab-separated)
+      colMap['fieldnumber'] = 0;
+      colMap['name'] = 1;
+      colMap['acres'] = values.length - 1;
+      return colMap;
+    }
+  }
+
+  if (values.length >= 2) {
+    const last = values[values.length - 1].trim();
+    if (!isNaN(parseFloat(last))) {
+      colMap['name'] = 0;
+      colMap['acres'] = values.length - 1;
+    }
+  }
+
+  return colMap;
+}
+
+/**
  * Parse CSV text into Field objects.
- * Expected columns (flexible header mapping): name, acres, latitude, longitude, crop, notes
+ * Supports comma and tab delimited files, with or without a header row.
+ * Expected columns (flexible header mapping): number, name, acres, latitude, longitude, crop, notes
  */
 export function parseCSV(text: string): Field[] {
   const lines = text.trim().split(/\r?\n/);
-  if (lines.length < 2) return [];
+  if (lines.length < 1) return [];
 
-  const headerLine = lines[0];
-  const headers = headerLine.split(',').map((h) => h.trim().toLowerCase().replace(/['"]/g, ''));
+  const delimiter = detectDelimiter(lines);
 
-  // Map known column names
-  const colMap: Record<string, number> = {};
-  const aliases: Record<string, string[]> = {
-    name: ['name', 'field_name', 'fieldname', 'field name', 'field'],
-    acres: ['acres', 'area', 'size'],
-    latitude: ['latitude', 'lat'],
-    longitude: ['longitude', 'lon', 'lng', 'long'],
-    crop: ['crop', 'crop_type', 'croptype'],
-    notes: ['notes', 'note', 'description', 'comments'],
-    carrierrate: ['carrierrate', 'carrier_rate', 'carrier rate', 'gpa'],
-    soiltype: ['soiltype', 'soil_type', 'soil type', 'soil'],
-    farmname: ['farmname', 'farm_name', 'farm name', 'farm'],
+  const splitLine = (line: string): string[] => {
+    if (delimiter === '\t') return line.split('\t');
+    if (delimiter === '  ') return splitMultiSpace(line);
+    return parseCSVLine(line);
   };
 
-  for (const [key, names] of Object.entries(aliases)) {
-    const idx = headers.findIndex((h) => names.includes(h));
-    if (idx >= 0) colMap[key] = idx;
+  const firstValues = splitLine(lines[0]);
+
+  const hasHeader = looksLikeHeader(firstValues);
+  let colMap: Record<string, number> = {};
+  let dataStart = 0;
+
+  if (hasHeader) {
+    const headers = firstValues.map((h) => h.trim().toLowerCase().replace(/['"]/g, ''));
+
+    const aliases: Record<string, string[]> = {
+      fieldnumber: ['number', 'field_number', 'fieldnumber', 'field number', '#', 'field #', 'field#', 'no', 'field_no'],
+      name: ['name', 'field_name', 'fieldname', 'field name', 'field'],
+      acres: ['acres', 'area', 'size'],
+      latitude: ['latitude', 'lat'],
+      longitude: ['longitude', 'lon', 'lng', 'long'],
+      crop: ['crop', 'crop_type', 'croptype'],
+      notes: ['notes', 'note', 'description', 'comments'],
+      carrierrate: ['carrierrate', 'carrier_rate', 'carrier rate', 'gpa'],
+      soiltype: ['soiltype', 'soil_type', 'soil type', 'soil'],
+      farmname: ['farmname', 'farm_name', 'farm name', 'farm'],
+    };
+
+    for (const [key, names] of Object.entries(aliases)) {
+      const idx = headers.findIndex((h) => names.includes(h));
+      if (idx >= 0) colMap[key] = idx;
+    }
+    dataStart = 1;
+  } else {
+    colMap = inferColumns(firstValues);
+    dataStart = 0;
   }
 
+  if (Object.keys(colMap).length === 0) return [];
+
   const fields: Field[] = [];
-  for (let i = 1; i < lines.length; i++) {
+  for (let i = dataStart; i < lines.length; i++) {
     const line = lines[i].trim();
     if (!line) continue;
 
-    // Simple CSV parse (handles quoted commas)
-    const values = parseCSVLine(line);
+    const values = splitLine(line);
 
     const get = (key: string): string => {
       const idx = colMap[key];
@@ -91,6 +197,7 @@ export function parseCSV(text: string): Field[] {
     const field: Field = {
       id: Date.now().toString() + '-' + i,
       name,
+      fieldNumber: get('fieldnumber') || undefined,
       acres: parseFloat(get('acres')) || 0,
       carrierRate: parseFloat(get('carrierrate')) || 20,
       latitude: parseFloat(get('latitude')) || undefined,
@@ -105,6 +212,19 @@ export function parseCSV(text: string): Field[] {
   }
 
   return fields;
+}
+
+/**
+ * Parse an Excel (.xlsx/.xls) file into Field objects.
+ * Reads the first sheet and converts it to CSV text, then delegates to parseCSV.
+ */
+export function parseExcel(data: ArrayBuffer): Field[] {
+  const workbook = XLSX.read(data, { type: 'array' });
+  const sheetName = workbook.SheetNames[0];
+  if (!sheetName) return [];
+  const sheet = workbook.Sheets[sheetName];
+  const csv = XLSX.utils.sheet_to_csv(sheet);
+  return parseCSV(csv);
 }
 
 /** Parse a single CSV line, respecting quoted fields. */
@@ -131,6 +251,79 @@ function parseCSVLine(line: string): string[] {
   }
   result.push(current);
   return result;
+}
+
+/**
+ * Parse GeoJSON into raw feature data without creating Field objects.
+ * Used by the boundary merge flow to match features to existing fields.
+ */
+export function parseGeoJSONFeatures(text: string): GeoJSONFeatureData[] {
+  const data = JSON.parse(text);
+  const features: any[] = [];
+
+  if (data.type === 'FeatureCollection' && Array.isArray(data.features)) {
+    features.push(...data.features);
+  } else if (data.type === 'Feature') {
+    features.push(data);
+  } else {
+    return [];
+  }
+
+  const results: GeoJSONFeatureData[] = [];
+
+  for (let i = 0; i < features.length; i++) {
+    const feature = features[i];
+    const props = feature.properties || {};
+    const geometry = feature.geometry;
+
+    if (!geometry) continue;
+
+    let boundary: [number, number][] | undefined;
+    let centroid: [number, number] | undefined;
+    let calculatedAcres = 0;
+
+    if (geometry.type === 'Polygon' && geometry.coordinates?.[0]) {
+      const coords: [number, number][] = geometry.coordinates[0].map(
+        (c: number[]) => [c[1], c[0]] as [number, number]
+      );
+      boundary = coords;
+      centroid = calculateCentroid(coords);
+      calculatedAcres = calculatePolygonArea(coords);
+    } else if (geometry.type === 'MultiPolygon' && geometry.coordinates?.[0]?.[0]) {
+      const coords: [number, number][] = geometry.coordinates[0][0].map(
+        (c: number[]) => [c[1], c[0]] as [number, number]
+      );
+      boundary = coords;
+      centroid = calculateCentroid(coords);
+      calculatedAcres = calculatePolygonArea(coords);
+    } else if (geometry.type === 'Point' && geometry.coordinates) {
+      centroid = [geometry.coordinates[1], geometry.coordinates[0]];
+    }
+
+    const name =
+      props.name ||
+      props.Name ||
+      props.NAME ||
+      props.field_name ||
+      props.fieldName ||
+      props.FIELD_NAME ||
+      props.title ||
+      `Feature ${i + 1}`;
+
+    const propsAcres =
+      parseFloat(props.acres || props.Acres || props.ACRES || props.area || props.Area || '') || 0;
+
+    results.push({
+      index: i,
+      name,
+      boundary,
+      centroid,
+      acres: propsAcres > 0 ? propsAcres : Math.round(calculatedAcres * 10) / 10,
+      properties: props,
+    });
+  }
+
+  return results;
 }
 
 /**

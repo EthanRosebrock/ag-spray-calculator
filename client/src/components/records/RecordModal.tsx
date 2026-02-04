@@ -12,8 +12,12 @@ interface RecordModalProps {
 const RecordModal: React.FC<RecordModalProps> = ({ prefill, onSave, onClose }) => {
   const [fields, setFields] = useState<Field[]>([]);
   const [date, setDate] = useState(prefill?.date || new Date().toISOString().split('T')[0]);
-  const [fieldId, setFieldId] = useState(prefill?.fieldId || '');
-  const [fieldName, setFieldName] = useState(prefill?.fieldName || '');
+  const [selectedFieldIds, setSelectedFieldIds] = useState<string[]>(
+    prefill?.fieldIds || (prefill?.fieldId ? [prefill.fieldId] : [])
+  );
+  const [manualFieldName, setManualFieldName] = useState(
+    prefill?.fieldIds?.length || prefill?.fieldId ? '' : (prefill?.fieldName || '')
+  );
   const [operator, setOperator] = useState(prefill?.operator || '');
   const [tankSize, setTankSize] = useState(prefill?.tankSize || 300);
   const [carrierRate, setCarrierRate] = useState(prefill?.carrierRate || 20);
@@ -25,12 +29,17 @@ const RecordModal: React.FC<RecordModalProps> = ({ prefill, onSave, onClose }) =
     setFields(getFields());
   }, []);
 
-  const handleFieldSelect = (id: string) => {
-    setFieldId(id);
-    if (id) {
-      const f = fields.find((field) => field.id === id);
-      if (f) setFieldName(f.name);
-    }
+  const toggleField = (id: string) => {
+    setSelectedFieldIds((prev) => {
+      const next = prev.includes(id) ? prev.filter((fid) => fid !== id) : [...prev, id];
+      // Auto-sum acres from selected fields
+      const totalAcres = next.reduce((sum, fid) => {
+        const f = fields.find((field) => field.id === fid);
+        return sum + (f?.acres || 0);
+      }, 0);
+      setAcres(Math.round(totalAcres * 10) / 10);
+      return next;
+    });
   };
 
   const addProduct = () => {
@@ -54,13 +63,24 @@ const RecordModal: React.FC<RecordModalProps> = ({ prefill, onSave, onClose }) =
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!fieldName || !date) return;
+
+    const selectedNames = selectedFieldIds
+      .map((id) => fields.find((f) => f.id === id)?.name)
+      .filter(Boolean) as string[];
+
+    const displayName = selectedNames.length > 0
+      ? selectedNames.join(', ')
+      : manualFieldName;
+
+    if (!displayName || !date) return;
 
     const record: SprayRecord = {
       id: Date.now().toString(),
       date,
-      fieldId: fieldId || undefined,
-      fieldName,
+      fieldId: selectedFieldIds.length === 1 ? selectedFieldIds[0] : undefined,
+      fieldName: displayName,
+      fieldIds: selectedFieldIds.length > 0 ? selectedFieldIds : undefined,
+      fieldNames: selectedNames.length > 0 ? selectedNames : undefined,
       operator,
       tankSize,
       carrierRate,
@@ -105,28 +125,44 @@ const RecordModal: React.FC<RecordModalProps> = ({ prefill, onSave, onClose }) =
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Field *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Field{fields.length > 0 ? '(s)' : ''} *
+            </label>
             {fields.length > 0 ? (
               <div className="space-y-2">
-                <select
-                  className="input-field"
-                  value={fieldId}
-                  onChange={(e) => handleFieldSelect(e.target.value)}
-                >
-                  <option value="">-- Select or type below --</option>
+                <div className="border rounded-lg max-h-48 overflow-y-auto p-2 space-y-1">
                   {fields.map((f) => (
-                    <option key={f.id} value={f.id}>
-                      {f.name} ({f.acres} ac)
-                    </option>
+                    <label
+                      key={f.id}
+                      className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer hover:bg-gray-50 ${
+                        selectedFieldIds.includes(f.id) ? 'bg-ag-green-50' : ''
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedFieldIds.includes(f.id)}
+                        onChange={() => toggleField(f.id)}
+                        className="rounded text-ag-green-600"
+                      />
+                      <span className="text-sm flex-1">
+                        {f.fieldNumber ? `${f.fieldNumber} - ` : ''}{f.name}
+                      </span>
+                      <span className="text-xs text-gray-400">{f.acres} ac</span>
+                    </label>
                   ))}
-                </select>
-                {!fieldId && (
+                </div>
+                {selectedFieldIds.length > 0 && (
+                  <div className="text-xs text-gray-500">
+                    {selectedFieldIds.length} field{selectedFieldIds.length !== 1 ? 's' : ''} selected &middot; {acres} ac total
+                  </div>
+                )}
+                {selectedFieldIds.length === 0 && (
                   <input
                     type="text"
                     className="input-field"
                     placeholder="Or type field name"
-                    value={fieldName}
-                    onChange={(e) => setFieldName(e.target.value)}
+                    value={manualFieldName}
+                    onChange={(e) => setManualFieldName(e.target.value)}
                   />
                 )}
               </div>
@@ -135,8 +171,8 @@ const RecordModal: React.FC<RecordModalProps> = ({ prefill, onSave, onClose }) =
                 type="text"
                 className="input-field"
                 placeholder="Field name"
-                value={fieldName}
-                onChange={(e) => setFieldName(e.target.value)}
+                value={manualFieldName}
+                onChange={(e) => setManualFieldName(e.target.value)}
                 required
               />
             )}

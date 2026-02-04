@@ -26,10 +26,10 @@ const RecordsPage: React.FC = () => {
     return records.filter((r) => {
       if (searchTerm) {
         const term = searchTerm.toLowerCase();
-        if (
-          !r.fieldName.toLowerCase().includes(term) &&
-          !r.operator.toLowerCase().includes(term)
-        ) {
+        const fieldMatch = r.fieldNames
+          ? r.fieldNames.some((n) => n.toLowerCase().includes(term))
+          : r.fieldName.toLowerCase().includes(term);
+        if (!fieldMatch && !r.operator.toLowerCase().includes(term)) {
           return false;
         }
       }
