@@ -24,9 +24,9 @@ export function useLoadSplitter(
   const [splitMode, setSplitMode] = useState<'even' | 'custom'>('even');
   const [customVolumes, setCustomVolumes] = useState<number[]>([]);
 
-  // Keep numberOfLoads >= minLoads when minLoads changes
+  // Sync numberOfLoads to minLoads when inputs change
   useEffect(() => {
-    setNumberOfLoadsState((prev) => Math.max(prev, minLoads));
+    setNumberOfLoadsState(minLoads);
   }, [minLoads]);
 
   // Recalculate even split when inputs change

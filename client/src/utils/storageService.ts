@@ -208,8 +208,12 @@ export async function getFields(): Promise<Field[]> {
 }
 
 export async function saveField(field: Field): Promise<void> {
-  const row = toSnakeCase(field as any);
-  await supabase.from('fields').upsert(row);
+  try {
+    const row = toSnakeCase(field as any);
+    await supabase.from('fields').upsert(row);
+  } catch {
+    // Supabase unavailable — fall through to localStorage
+  }
   const cached = loadJSON<Field[]>(KEYS.fields) || [];
   const idx = cached.findIndex((f) => f.id === field.id);
   if (idx >= 0) cached[idx] = field;
@@ -218,7 +222,11 @@ export async function saveField(field: Field): Promise<void> {
 }
 
 export async function deleteField(id: string): Promise<void> {
-  await supabase.from('fields').delete().eq('id', id);
+  try {
+    await supabase.from('fields').delete().eq('id', id);
+  } catch {
+    // Supabase unavailable — fall through to localStorage
+  }
   const cached = (loadJSON<Field[]>(KEYS.fields) || []).filter((f) => f.id !== id);
   saveJSON(KEYS.fields, cached);
 }
