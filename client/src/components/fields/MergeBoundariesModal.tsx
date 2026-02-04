@@ -35,6 +35,7 @@ const MergeBoundariesModal: React.FC<MergeBoundariesModalProps> = ({ onMerge, on
 
   // Apply results
   const [applyCount, setApplyCount] = useState(0);
+  const [applying, setApplying] = useState(false);
 
   const [fields, setFieldsList] = useState<Field[]>([]);
 
@@ -132,15 +133,16 @@ const MergeBoundariesModal: React.FC<MergeBoundariesModalProps> = ({ onMerge, on
   }, [features, overrides, matchResults]);
 
   const handleApply = async () => {
+    setApplying(true);
+    setError('');
     try {
       let count = 0;
-      const currentFields = await getFields();
 
       for (const feature of features) {
         const fieldId = getEffectiveFieldId(feature.index);
         if (!fieldId) continue;
 
-        const existing = currentFields.find((f) => f.id === fieldId);
+        const existing = fields.find((f) => f.id === fieldId);
         if (!existing) continue;
 
         const updated: Field = { ...existing, boundary: feature.boundary };
@@ -161,7 +163,10 @@ const MergeBoundariesModal: React.FC<MergeBoundariesModalProps> = ({ onMerge, on
       setApplyCount(count);
       setStep('done');
     } catch (err) {
+      console.error('Boundary apply failed:', err);
       setError(`Failed to apply boundaries: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setApplying(false);
     }
   };
 
@@ -329,9 +334,11 @@ const MergeBoundariesModal: React.FC<MergeBoundariesModalProps> = ({ onMerge, on
               <button
                 onClick={handleApply}
                 className="btn-primary flex-1"
-                disabled={assignedCount === 0 || duplicateCheck.size > 0}
+                disabled={assignedCount === 0 || duplicateCheck.size > 0 || applying}
               >
-                Apply {assignedCount} Boundar{assignedCount !== 1 ? 'ies' : 'y'}
+                {applying
+                  ? 'Applying...'
+                  : `Apply ${assignedCount} Boundar${assignedCount !== 1 ? 'ies' : 'y'}`}
               </button>
               <button
                 onClick={() => {
