@@ -294,6 +294,96 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   return Math.round(R * c * 10) / 10;
 }
 
+// --- State abbreviation → full name helper ---
+function getStateName(abbr) {
+  const states = {
+    AL:'Alabama',AK:'Alaska',AZ:'Arizona',AR:'Arkansas',CA:'California',
+    CO:'Colorado',CT:'Connecticut',DE:'Delaware',FL:'Florida',GA:'Georgia',
+    HI:'Hawaii',ID:'Idaho',IL:'Illinois',IN:'Indiana',IA:'Iowa',
+    KS:'Kansas',KY:'Kentucky',LA:'Louisiana',ME:'Maine',MD:'Maryland',
+    MA:'Massachusetts',MI:'Michigan',MN:'Minnesota',MS:'Mississippi',MO:'Missouri',
+    MT:'Montana',NE:'Nebraska',NV:'Nevada',NH:'New Hampshire',NJ:'New Jersey',
+    NM:'New Mexico',NY:'New York',NC:'North Carolina',ND:'North Dakota',OH:'Ohio',
+    OK:'Oklahoma',OR:'Oregon',PA:'Pennsylvania',RI:'Rhode Island',SC:'South Carolina',
+    SD:'South Dakota',TN:'Tennessee',TX:'Texas',UT:'Utah',VT:'Vermont',
+    VA:'Virginia',WA:'Washington',WV:'West Virginia',WI:'Wisconsin',WY:'Wyoming',
+    DC:'District of Columbia'
+  };
+  return states[(abbr || '').toUpperCase()] || abbr || '';
+}
+
+// --- Geocode endpoint: Census (primary) → Nominatim (fallback) ---
+app.get('/api/geocode', async (req, res) => {
+  const address = (req.query.address || '').trim();
+  if (!address) {
+    return res.status(400).json({ error: 'address query parameter is required' });
+  }
+
+  // Tier 1: US Census Geocoder
+  try {
+    const censusUrl = 'https://geocoding.geo.census.gov/geocoder/geographies/onelineaddress'
+      + `?address=${encodeURIComponent(address)}&benchmark=Public_AR_Current`
+      + '&vintage=Current_Current&format=json';
+    const censusRes = await axios.get(censusUrl, { timeout: 10000 });
+    const matches = censusRes.data?.result?.addressMatches;
+
+    if (matches && matches.length > 0) {
+      const match = matches[0];
+      const coords = match.coordinates;
+      const geo = match.geographies;
+      const countyArr = geo?.Counties || geo?.['County Subdivisions'] || [];
+      const stateArr = geo?.States || [];
+      const countyName = countyArr[0]?.BASENAME || countyArr[0]?.NAME || '';
+      const stateAbbr = stateArr[0]?.STUSAB || match.addressComponents?.state || '';
+
+      return res.json({
+        latitude: +coords.y.toFixed(4),
+        longitude: +coords.x.toFixed(4),
+        city: match.addressComponents?.city || '',
+        state: getStateName(stateAbbr),
+        county: countyName ? `${countyName} County` : '',
+        formattedAddress: match.matchedAddress || address
+      });
+    }
+    console.log('Census geocoder: no matches, falling through to Nominatim');
+  } catch (censusErr) {
+    console.warn('Census geocoder failed, falling through to Nominatim:', censusErr.message);
+  }
+
+  // Tier 2: Nominatim / OpenStreetMap
+  try {
+    const nomUrl = 'https://nominatim.openstreetmap.org/search'
+      + `?q=${encodeURIComponent(address)}&format=json&addressdetails=1`
+      + '&countrycodes=us&limit=1';
+    const nomRes = await axios.get(nomUrl, {
+      timeout: 8000,
+      headers: { 'User-Agent': 'ag-spray-calculator/1.0' }
+    });
+    const results = nomRes.data;
+
+    if (results && results.length > 0) {
+      const r = results[0];
+      const addr = r.address || {};
+      const stateAbbr = addr.state_code || addr['ISO3166-2-lvl4']?.split('-')[1] || '';
+      const county = addr.county || '';
+
+      return res.json({
+        latitude: +parseFloat(r.lat).toFixed(4),
+        longitude: +parseFloat(r.lon).toFixed(4),
+        city: addr.city || addr.town || addr.village || addr.hamlet || '',
+        state: getStateName(stateAbbr) || addr.state || '',
+        county: county && !county.endsWith('County') ? `${county} County` : county,
+        formattedAddress: r.display_name || address
+      });
+    }
+
+    return res.status(404).json({ error: 'No results found for that address' });
+  } catch (nomErr) {
+    console.warn('Nominatim geocoder failed:', nomErr.message);
+    return res.status(502).json({ error: 'Geocoding services unavailable' });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });

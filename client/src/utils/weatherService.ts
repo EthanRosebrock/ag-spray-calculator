@@ -73,6 +73,24 @@ export function getCurrentPosition(): Promise<{ latitude: number; longitude: num
   });
 }
 
+export interface GeocodeResult {
+  latitude: number;
+  longitude: number;
+  city: string;
+  state: string;
+  county: string;
+  formattedAddress: string;
+}
+
+export async function geocodeAddress(address: string): Promise<GeocodeResult> {
+  const res = await fetch(`/api/geocode?address=${encodeURIComponent(address)}`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: 'Geocoding failed' }));
+    throw new Error(body.error || `Geocoding failed (${res.status})`);
+  }
+  return res.json();
+}
+
 export class WeatherService {
 
   static async getCurrentWeather(coords?: { latitude: number; longitude: number }): Promise<WeatherData> {

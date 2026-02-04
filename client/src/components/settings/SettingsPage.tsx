@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Product } from '../../types';
 import { ContainerType } from '../../utils/containerCalculations';
-import { LocationWeatherService, LocationData, getCurrentPosition } from '../../utils/weatherService';
+import { LocationWeatherService, LocationData, getCurrentPosition, geocodeAddress } from '../../utils/weatherService';
 import {
   getProducts,
   deleteProduct,
@@ -57,14 +57,61 @@ const LocationTab: React.FC = () => {
   const [farmLocation, setFarmLocation] = useState<LocationData>(
     LocationWeatherService.getFarmLocation()
   );
+  const [address, setAddress] = useState('');
   const [saved, setSaved] = useState(false);
+  const [searchStatus, setSearchStatus] = useState<'idle' | 'searching' | 'error'>('idle');
+  const [searchError, setSearchError] = useState('');
   const [geoStatus, setGeoStatus] = useState<'idle' | 'locating' | 'error'>('idle');
+
+  const saveFarmLocation = (location: LocationData) => {
+    setFarmLocation(location);
+    LocationWeatherService.setFarmLocation(location);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  const handleAddressLookup = async () => {
+    const trimmed = address.trim();
+    if (!trimmed) return;
+
+    setSearchStatus('searching');
+    setSearchError('');
+    setSaved(false);
+
+    try {
+      const result = await geocodeAddress(trimmed);
+      saveFarmLocation({
+        latitude: result.latitude,
+        longitude: result.longitude,
+        city: result.city,
+        state: result.state,
+        county: result.county,
+        timezone: farmLocation.timezone,
+      });
+      setSearchStatus('idle');
+    } catch (err: any) {
+      setSearchStatus('error');
+      setSearchError(err.message || 'Geocoding failed');
+      setTimeout(() => setSearchStatus('idle'), 4000);
+    }
+  };
+
+  const handleAddressKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleAddressLookup();
+    }
+  };
 
   const useCurrentLocation = async () => {
     setGeoStatus('locating');
+    setSaved(false);
     const pos = await getCurrentPosition();
     if (pos) {
-      setFarmLocation((prev) => ({ ...prev, latitude: +pos.latitude.toFixed(4), longitude: +pos.longitude.toFixed(4) }));
+      saveFarmLocation({
+        ...farmLocation,
+        latitude: +pos.latitude.toFixed(4),
+        longitude: +pos.longitude.toFixed(4),
+      });
       setGeoStatus('idle');
     } else {
       setGeoStatus('error');
@@ -72,64 +119,65 @@ const LocationTab: React.FC = () => {
     }
   };
 
-  const updateFarmLocation = () => {
-    LocationWeatherService.setFarmLocation(farmLocation);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-  };
-
   return (
     <div className="space-y-6">
       <div className="card">
         <h2 className="text-xl font-semibold mb-4">Farm Headquarters</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Latitude</label>
-            <input
-              type="number"
-              step="0.0001"
-              className="input-field"
-              value={farmLocation.latitude}
-              onChange={(e) =>
-                setFarmLocation({ ...farmLocation, latitude: parseFloat(e.target.value) })
-              }
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Longitude</label>
-            <input
-              type="number"
-              step="0.0001"
-              className="input-field"
-              value={farmLocation.longitude}
-              onChange={(e) =>
-                setFarmLocation({ ...farmLocation, longitude: parseFloat(e.target.value) })
-              }
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+
+        {/* Address search */}
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Address Search
+          </label>
+          <div className="flex gap-2">
             <input
               type="text"
-              className="input-field"
-              value={farmLocation.city}
-              onChange={(e) => setFarmLocation({ ...farmLocation, city: e.target.value })}
+              className="input-field flex-1"
+              placeholder="e.g. 123 Main St, Defiance, OH or 43512"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              onKeyDown={handleAddressKeyDown}
+              disabled={searchStatus === 'searching'}
             />
+            <button
+              onClick={handleAddressLookup}
+              disabled={searchStatus === 'searching' || !address.trim()}
+              className="btn-primary whitespace-nowrap"
+            >
+              {searchStatus === 'searching' ? 'Searching...' : 'Look Up'}
+            </button>
+          </div>
+          {searchStatus === 'error' && searchError && (
+            <p className="text-sm text-red-600 mt-1">{searchError}</p>
+          )}
+        </div>
+
+        {/* Resolved location (read-only) */}
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+          <div>
+            <span className="block text-gray-500">Latitude</span>
+            <span className="font-medium">{farmLocation.latitude}</span>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">County</label>
-            <input
-              type="text"
-              className="input-field"
-              value={farmLocation.county}
-              onChange={(e) => setFarmLocation({ ...farmLocation, county: e.target.value })}
-            />
+            <span className="block text-gray-500">Longitude</span>
+            <span className="font-medium">{farmLocation.longitude}</span>
+          </div>
+          <div>
+            <span className="block text-gray-500">City</span>
+            <span className="font-medium">{farmLocation.city || '—'}</span>
+          </div>
+          <div>
+            <span className="block text-gray-500">State</span>
+            <span className="font-medium">{farmLocation.state || '—'}</span>
+          </div>
+          <div>
+            <span className="block text-gray-500">County</span>
+            <span className="font-medium">{farmLocation.county || '—'}</span>
           </div>
         </div>
+
+        {/* GPS + status */}
         <div className="flex items-center gap-3 mt-4">
-          <button onClick={updateFarmLocation} className="btn-primary">
-            Update Farm Location
-          </button>
           <button
             onClick={useCurrentLocation}
             disabled={geoStatus === 'locating'}
