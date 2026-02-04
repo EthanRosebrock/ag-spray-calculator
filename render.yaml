@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: ag-spray-calculator
+    runtime: node
+    buildCommand: npm run render-build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WU_API_KEY
+        sync: false
