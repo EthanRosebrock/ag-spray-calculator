@@ -67,7 +67,24 @@ function looksLikeFieldNumber(s: string): boolean {
  * Normalize a field number for comparison: lowercase, strip common separators.
  */
 function normalizeFieldNumber(num: string): string {
-  return num.toLowerCase().replace(/[\s\-_.]/g, '').trim();
+  let n = num.trim().toLowerCase();
+  // Strip trailing decimal zeros (e.g. "12.0" or "12.00" → "12")
+  n = n.replace(/\.0+$/, '');
+  // Strip separators
+  n = n.replace(/[\s\-_]/g, '');
+  // Strip leading zeros but keep at least one digit (e.g. "012" → "12", "0" → "0")
+  n = n.replace(/^0+(?=\d)/, '');
+  return n;
+}
+
+/**
+ * Extract the first numeric part (with optional trailing letter suffix) from a string.
+ * Returns the normalized form, or null if no digits found.
+ */
+function extractNumericPart(s: string): string | null {
+  const match = s.match(/(\d+[a-zA-Z]*)/);
+  if (!match) return null;
+  return normalizeFieldNumber(match[1]);
 }
 
 /**
@@ -79,8 +96,9 @@ function normalizeFieldNumber(num: string): string {
  *   3. Normalized match (medium) -- strips punctuation, collapses spaces
  *   4. Contains match (medium) -- one contains the other, min 4 chars, unambiguous
  *   5. Field number match (medium) -- GeoJSON properties number vs field's fieldNumber
- *   6. Feature name as field number (medium) -- feature named "13E" matches field with fieldNumber "13E"
- *   7. Feature number as field name (medium) -- GeoJSON number property matches field name
+ *   6. Numeric extraction match (medium) -- extract numeric part from feature name, compare against field number or field name
+ *   7. Feature name as field number (medium) -- feature named "13E" matches field with fieldNumber "13E"
+ *   8. Feature number as field name (medium) -- GeoJSON number property matches field name
  */
 export function matchFeaturesToFields(
   features: GeoJSONFeatureData[],
@@ -199,7 +217,45 @@ export function matchFeaturesToFields(
       }
     }
 
-    // 6. Feature name looks like a field number -- match against field's fieldNumber
+    // 6. Numeric extraction match -- extract numeric part from feature name, compare against field number or field name
+    {
+      const featureNumPart = extractNumericPart(feature.name);
+      if (featureNumPart) {
+        // Try matching against field's fieldNumber first
+        const numExtractMatch = fields.find(
+          (f) =>
+            !claimedFieldIds.has(f.id) &&
+            f.fieldNumber &&
+            normalizeFieldNumber(f.fieldNumber) === featureNumPart
+        );
+        if (numExtractMatch) {
+          result.matchedFieldId = numExtractMatch.id;
+          result.matchedFieldName = numExtractMatch.name;
+          result.confidence = 'medium';
+          result.matchReason = `Numeric extraction match (${feature.name} → #${numExtractMatch.fieldNumber})`;
+          claimedFieldIds.add(numExtractMatch.id);
+          results.push(result);
+          continue;
+        }
+        // Fallback: try matching against the numeric part of field names
+        const numExtractNameMatch = fields.find(
+          (f) =>
+            !claimedFieldIds.has(f.id) &&
+            extractNumericPart(f.name) === featureNumPart
+        );
+        if (numExtractNameMatch) {
+          result.matchedFieldId = numExtractNameMatch.id;
+          result.matchedFieldName = numExtractNameMatch.name;
+          result.confidence = 'medium';
+          result.matchReason = `Numeric extraction match (${feature.name} → ${numExtractNameMatch.name})`;
+          claimedFieldIds.add(numExtractNameMatch.id);
+          results.push(result);
+          continue;
+        }
+      }
+    }
+
+    // 7. Feature name looks like a field number -- match against field's fieldNumber or field name
     if (looksLikeFieldNumber(feature.name)) {
       const normName = normalizeFieldNumber(feature.name);
       const nameAsNumMatch = fields.find(
@@ -217,9 +273,24 @@ export function matchFeaturesToFields(
         results.push(result);
         continue;
       }
+      // Fallback: match feature name (as number) against numeric part of field name
+      const nameAsFieldNameMatch = fields.find(
+        (f) =>
+          !claimedFieldIds.has(f.id) &&
+          extractNumericPart(f.name) === normName
+      );
+      if (nameAsFieldNameMatch) {
+        result.matchedFieldId = nameAsFieldNameMatch.id;
+        result.matchedFieldName = nameAsFieldNameMatch.name;
+        result.confidence = 'medium';
+        result.matchReason = `Name matches field name number (${feature.name} → ${nameAsFieldNameMatch.name})`;
+        claimedFieldIds.add(nameAsFieldNameMatch.id);
+        results.push(result);
+        continue;
+      }
     }
 
-    // 7. Feature number matches a field's name (when field has no fieldNumber set)
+    // 8. Feature number matches a field's name (when field has no fieldNumber set)
     if (featureNumber) {
       const numAsNameMatch = fields.find(
         (f) =>
