@@ -22,12 +22,17 @@ cd client && npm test       # Jest tests (interactive watch mode)
 cd client && npx tsc --noEmit
 ```
 
+**Deployment (Render.com):**
+```bash
+npm run render-build  # npm install && cd client && npm install && npm run build
+```
+
 There is no linter configured beyond what CRA provides (eslint via react-scripts). No Prettier config.
 
 ## Architecture
 
 ### Backend (`server.js`)
-Single Express 5 server — no database, no auth. All user data lives in browser localStorage. Endpoints:
+Single Express 5 server — no database, no auth. All user data lives in browser localStorage (with optional Supabase cloud sync). Endpoints:
 
 - `GET /api/weather/location?lat=&lon=` — 4-tier fallback: Weather Underground PWS → NWS API → Open-Meteo → mock data. WU API key is in `.env`.
 - `GET /api/weather/stations?lat=&lon=&radius=` — nearby weather stations.
@@ -37,14 +42,14 @@ Single Express 5 server — no database, no auth. All user data lives in browser
 ### Frontend (`client/src/`)
 React 19 + TypeScript SPA using tab-based navigation via state in `App.tsx` (no React Router, though it's installed). Six tabs: Calculator, Weather, Records, Fields, Map, Settings.
 
-**Data flow:** Components → Custom hooks (`useCalculator`, `useLoadSplitter`, `useWeather`) → `storageService.ts` (localStorage) + `weatherService.ts` (API calls to backend). No global state library.
+**Data flow:** Components → Custom hooks (`useCalculator`, `useLoadSplitter`, `useWeather`) → `storageService.ts` (localStorage/Supabase) + `weatherService.ts` (API calls to backend). No global state library.
 
 **Proxy:** `client/package.json` has `"proxy": "http://localhost:5000"` so all `/api/*` calls from the dev server route to the backend.
 
 ### Custom Hooks
 
 - **`useCalculator`** — manages tankSize, carrierRate, acres, and selectedProducts. Persists defaults to localStorage. Auto-recalculates product `totalAmount` via `convertRateToAmount()` when acres or carrier rate change.
-- **`useLoadSplitter`** — splits total volume across loads. Supports `even` or `custom` split mode. In custom mode, editing one load proportionally redistributes the others to maintain total volume.
+- **`useLoadSplitter`** — splits total volume across loads. Supports `even` or `custom` split mode. In custom mode, loads the user has adjusted become "locked" and won't move when other loads are changed — only unlocked loads receive redistributed volume. `lockedLoads` (Set<number>) tracks this; locks clear on mode switch or load count change.
 - **`useWeather`** — auto-detects location (GPS → stored farm location), fetches weather, runs drift assessment. Auto-refreshes every 5 minutes. Exposes `isGo` boolean (true if recommendation is optimal or acceptable).
 
 ### Key Domain Concepts
@@ -55,12 +60,17 @@ React 19 + TypeScript SPA using tab-based navigation via state in `App.tsx` (no 
 
 **Microclimate adjustments:** Fields can have microclimate tags (sheltered/exposed/valley/hilltop) that multiply wind and humidity values before drift scoring. Applied in `LocationWeatherService.adjustForMicroclimate()`.
 
-**Container optimization:** `containerCalculations.ts` uses a greedy largest-first algorithm to break total product amounts into physical containers (jugs, drums, totes, bags).
+**Container optimization:** `containerCalculations.ts` uses a greedy largest-first algorithm to break total product amounts into physical containers (jugs, drums, totes, bags). Products can specify `preferredContainers` (array of container IDs) to limit which containers are used. The Container Breakdown section shows both total breakdowns and per-load breakdowns when multiple loads exist.
 
-**Field selection:** Calculator uses multi-select checkboxes (`selectedFieldIds: string[]`) that auto-sum acres. RecordModal uses the same pattern. Both pass `fieldIds` arrays to `SprayRecord`. The `SprayRecord` type has both legacy `fieldId` (single) and current `fieldIds` (array) fields.
+**Load splitting:** `redistributeLoadVolumes()` in `loadCalculations.ts` accepts a `lockedIndices: Set<number>` parameter. Locked loads keep their volume fixed; remaining volume is proportionally distributed among unlocked loads only. The slider UI includes snap-to-full (95% threshold snaps to tankSize), a Fill button, and editable numeric inputs.
 
-### Storage Schema
-All keys prefixed `agrispray_` in localStorage (except legacy `farmLocation` and `fieldLocations`). Key entities: `products`, `containers`, `fields`, `records`, `routes`, `pins`, `calculator_defaults`, `tank_presets`, `carrier_presets`. Storage has a version migration system (currently v2) that runs on module load in `storageService.ts`. The v1→v2 migration converts legacy unit strings to structured `measurementUnit` + `rateBasis` pairs.
+**Field selection:** Calculator uses multi-select checkboxes (`selectedFieldIds: string[]`) that auto-sum acres, with a search filter for field/farm name. RecordModal uses the same pattern. Both pass `fieldIds` arrays to `SprayRecord`. The `SprayRecord` type has both legacy `fieldId` (single) and current `fieldIds` (array) fields.
+
+### Storage & Sync
+
+**localStorage:** All keys prefixed `agrispray_` (except legacy `farmLocation` and `fieldLocations`). Key entities: `products`, `containers`, `fields`, `records`, `routes`, `pins`, `calculator_defaults`, `tank_presets`, `carrier_presets`. Storage has a version migration system (currently v2) that runs on module load in `storageService.ts`. The v1→v2 migration converts legacy unit strings to structured `measurementUnit` + `rateBasis` pairs.
+
+**Supabase cloud sync (optional):** Configured via `REACT_APP_SUPABASE_URL` and `REACT_APP_SUPABASE_ANON_KEY` environment variables. When configured, `supabaseClient.ts` provides cloud persistence for products, fields, settings, spray records, tender routes, and saved pins. Falls back to localStorage-only if Supabase is unavailable. A one-time `migrateLocalStorageToSupabase()` runs on app init (converts camelCase → snake_case for DB). App shows a dismissable warning banner if Supabase health check fails on startup.
 
 ### Styling
 Tailwind CSS with a custom `ag-green` color palette (50–700 shades) defined in `tailwind.config.js`. Four reusable component classes in `index.css`: `.btn-primary`, `.btn-secondary`, `.input-field`, `.card`.
@@ -70,3 +80,6 @@ Uses Leaflet + react-leaflet with free Esri World Imagery satellite tiles (no AP
 
 ### Import/Export
 `importService.ts` handles CSV, Excel (via `xlsx` library), and GeoJSON file parsing for field import. GeoJSON coordinates are `[lng, lat]` (GeoJSON spec) and get converted to `[lat, lng]` (Leaflet convention) on import. Polygon area uses the Shoelace formula with latitude-scaled coordinates. `boundaryMatcher.ts` provides priority-based fuzzy matching to link imported GeoJSON features to existing fields by name, field number, or normalized string similarity.
+
+### Deployment
+Hosted on Render.com via `render.yaml`. Environment variables: `WU_API_KEY` (secret, for Weather Underground), `REACT_APP_SUPABASE_URL`, `REACT_APP_SUPABASE_ANON_KEY`. No `.env.example` — env vars are configured in the Render dashboard or `render.yaml`.
