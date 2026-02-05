@@ -180,7 +180,10 @@ const CalculatorPage: React.FC = () => {
       <MixingInstructions selectedProducts={calc.selectedProducts} />
 
       {/* Section G: Container Breakdown (collapsible) */}
-      <ContainerBreakdownSection selectedProducts={calc.selectedProducts} />
+      <ContainerBreakdownSection
+        selectedProducts={calc.selectedProducts}
+        loads={showLoadPlanner ? splitter.loads : undefined}
+      />
 
       {/* Section H: Save as Spray Record */}
       <div className="card">

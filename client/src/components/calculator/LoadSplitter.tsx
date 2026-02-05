@@ -82,46 +82,83 @@ const LoadSplitter: React.FC<LoadSplitterProps> = ({
       {/* Load bars */}
       <div className="space-y-3">
         {loads.map((load, index) => (
-          <div key={index} className="flex items-center gap-3">
-            <span className="text-sm font-medium text-gray-500 w-8">
-              #{load.loadNumber}
-            </span>
+          <div key={index}>
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium text-gray-500 w-8">
+                #{load.loadNumber}
+              </span>
 
-            <div className="flex-1">
-              {splitMode === 'custom' ? (
-                <input
-                  type="range"
-                  min={0}
-                  max={tankSize}
-                  step={1}
-                  value={load.volume}
-                  onChange={(e) => onLoadVolumeChange(index, parseFloat(e.target.value))}
-                  className="w-full h-2 rounded-lg appearance-none cursor-pointer"
-                  style={{
-                    background: `linear-gradient(to right, ${
-                      load.percentage >= 90
-                        ? '#22c55e'
-                        : load.percentage >= 50
-                        ? '#eab308'
-                        : load.percentage >= 25
-                        ? '#f97316'
-                        : '#ef4444'
-                    } ${load.percentage}%, #e5e7eb ${load.percentage}%)`,
-                  }}
-                />
-              ) : (
-                <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all ${getBarColor(load.percentage)}`}
-                    style={{ width: `${Math.min(load.percentage, 100)}%` }}
+              <div className="flex-1">
+                {splitMode === 'custom' ? (
+                  <input
+                    type="range"
+                    min={0}
+                    max={tankSize}
+                    step={1}
+                    value={load.volume}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value);
+                      const snapped = val >= tankSize * 0.95 ? tankSize : val;
+                      onLoadVolumeChange(index, snapped);
+                    }}
+                    className="w-full h-3 rounded-lg appearance-none cursor-pointer"
+                    style={{
+                      background: `linear-gradient(to right, ${
+                        load.percentage >= 90
+                          ? '#22c55e'
+                          : load.percentage >= 50
+                          ? '#eab308'
+                          : load.percentage >= 25
+                          ? '#f97316'
+                          : '#ef4444'
+                      } ${load.percentage}%, #e5e7eb ${load.percentage}%)`,
+                    }}
                   />
+                ) : (
+                  <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all ${getBarColor(load.percentage)}`}
+                      style={{ width: `${Math.min(load.percentage, 100)}%` }}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {splitMode === 'custom' ? (
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="number"
+                    min={0}
+                    max={tankSize}
+                    value={Math.round(load.volume)}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value);
+                      if (!isNaN(val)) {
+                        const clamped = Math.max(0, Math.min(val, tankSize));
+                        onLoadVolumeChange(index, clamped);
+                      }
+                    }}
+                    className="w-16 text-sm text-right border border-gray-300 rounded px-1.5 py-0.5"
+                  />
+                  <span className="text-xs text-gray-500">gal</span>
+                  <button
+                    onClick={() => onLoadVolumeChange(index, tankSize)}
+                    className="text-xs px-2 py-1 rounded bg-ag-green-50 text-ag-green-700 hover:bg-ag-green-100 font-medium whitespace-nowrap"
+                  >
+                    Fill
+                  </button>
                 </div>
+              ) : (
+                <span className="text-sm text-gray-700 w-28 text-right">
+                  {Math.round(load.volume)} gal ({load.percentage}%)
+                </span>
               )}
             </div>
-
-            <span className="text-sm text-gray-700 w-28 text-right">
-              {Math.round(load.volume)} gal ({load.percentage}%)
-            </span>
+            {splitMode === 'custom' && (
+              <div className="ml-11 text-xs text-gray-500 mt-0.5">
+                {load.percentage}% of tank
+              </div>
+            )}
           </div>
         ))}
       </div>
