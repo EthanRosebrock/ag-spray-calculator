@@ -32,7 +32,7 @@ function App() {
         const health = await checkSupabaseHealth();
         if (!health.ok) {
           console.error('Supabase sync unavailable:', health.error);
-          setSyncWarning('Cloud sync unavailable — data is saved to this browser only.');
+          setSyncWarning(`Cloud sync unavailable: ${health.error || 'unknown error'}`);
         } else {
           console.log('Supabase connected successfully');
         }
