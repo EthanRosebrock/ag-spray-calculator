@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { MapContainer, TileLayer, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, ZoomControl, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { Field } from '../../types';
 import { getFields, getPins } from '../../utils/storageService';
@@ -93,7 +93,7 @@ const MapPage: React.FC = () => {
           <button
             key={m.key}
             onClick={() => setMode(m.key)}
-            className={`px-2.5 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium transition-colors ${
+            className={`px-3 py-2 sm:px-5 sm:py-2.5 text-sm sm:text-base font-medium transition-colors ${
               mode === m.key
                 ? 'bg-ag-green-600 text-white'
                 : 'bg-white text-gray-700 hover:bg-gray-100'
@@ -139,7 +139,7 @@ const MapPage: React.FC = () => {
         center={center}
         zoom={14}
         style={{ height: '100%', width: '100%' }}
-        zoomControl={true}
+        zoomControl={false}
         ref={setMapRef}
       >
         {/* Satellite base layer */}
@@ -157,6 +157,7 @@ const MapPage: React.FC = () => {
           />
         )}
 
+        <ZoomControl position="bottomright" />
         <MapControls homeTarget={homeTarget} />
         <FieldLayer fields={fields} />
         <DrawControls active={mode === 'draw'} onFieldCreated={reloadFields} />
