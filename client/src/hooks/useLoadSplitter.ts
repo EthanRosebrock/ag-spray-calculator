@@ -23,6 +23,7 @@ export function useLoadSplitter(
   const [numberOfLoads, setNumberOfLoadsState] = useState(minLoads);
   const [splitMode, setSplitMode] = useState<'even' | 'custom'>('even');
   const [customVolumes, setCustomVolumes] = useState<number[]>([]);
+  const [lockedLoads, setLockedLoads] = useState<Set<number>>(new Set());
 
   // Sync numberOfLoads to minLoads when inputs change
   useEffect(() => {
@@ -35,8 +36,9 @@ export function useLoadSplitter(
     [totalVolume, numberOfLoads, tankSize]
   );
 
-  // Reset custom volumes when switching to even or when load count changes
+  // Reset custom volumes and locks when switching to even or when load count changes
   useEffect(() => {
+    setLockedLoads(new Set());
     if (splitMode === 'even') {
       setCustomVolumes(evenVolumes);
     } else {
@@ -65,11 +67,16 @@ export function useLoadSplitter(
   const setLoadVolume = useCallback(
     (index: number, newVolume: number) => {
       if (splitMode !== 'custom') return;
+      setLockedLoads((prev) => {
+        const next = new Set(prev);
+        next.add(index);
+        return next;
+      });
       setCustomVolumes((prev) =>
-        redistributeLoadVolumes(prev, index, newVolume, totalVolume, tankSize)
+        redistributeLoadVolumes(prev, index, newVolume, totalVolume, tankSize, lockedLoads)
       );
     },
-    [splitMode, totalVolume, tankSize]
+    [splitMode, totalVolume, tankSize, lockedLoads]
   );
 
   const loads: LoadInfo[] = useMemo(() => {
@@ -90,6 +97,10 @@ export function useLoadSplitter(
     [loads]
   );
 
+  const resetLocks = useCallback(() => {
+    setLockedLoads(new Set());
+  }, []);
+
   return {
     numberOfLoads,
     setNumberOfLoads,
@@ -100,5 +111,7 @@ export function useLoadSplitter(
     loads,
     fullLoads,
     partialLoads,
+    lockedLoads,
+    resetLocks,
   };
 }

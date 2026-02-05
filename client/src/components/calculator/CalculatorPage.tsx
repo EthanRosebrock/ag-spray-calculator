@@ -21,6 +21,7 @@ const CalculatorPage: React.FC = () => {
   const [recordSaved, setRecordSaved] = useState(false);
   const [selectedFieldIds, setSelectedFieldIds] = useState<string[]>([]);
   const [fields, setFields] = useState<Field[]>([]);
+  const [fieldSearch, setFieldSearch] = useState('');
 
   useEffect(() => {
     getFields().then(setFields);
@@ -93,8 +94,24 @@ const CalculatorPage: React.FC = () => {
       {fields.length > 0 && (
         <div className="card">
           <label className="block text-sm font-medium text-gray-700 mb-1">Fields</label>
+          {fields.length > 5 && (
+            <input
+              type="text"
+              placeholder="Search fields..."
+              value={fieldSearch}
+              onChange={(e) => setFieldSearch(e.target.value)}
+              className="input-field mb-2 text-sm"
+            />
+          )}
           <div className="border rounded-lg max-h-48 overflow-y-auto p-2 space-y-1">
-            {fields.map((f) => (
+            {fields.filter((f) => {
+              if (!fieldSearch) return true;
+              const q = fieldSearch.toLowerCase();
+              return (
+                f.name.toLowerCase().includes(q) ||
+                (f.farmName && f.farmName.toLowerCase().includes(q))
+              );
+            }).map((f) => (
               <label
                 key={f.id}
                 className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer hover:bg-gray-50 ${
@@ -160,9 +177,11 @@ const CalculatorPage: React.FC = () => {
           splitMode={splitter.splitMode}
           loads={splitter.loads}
           tankSize={calc.tankSize}
+          lockedLoads={splitter.lockedLoads}
           onNumberOfLoadsChange={splitter.setNumberOfLoads}
           onSplitModeChange={splitter.setSplitMode}
           onLoadVolumeChange={splitter.setLoadVolume}
+          onResetLocks={splitter.resetLocks}
         />
       )}
 

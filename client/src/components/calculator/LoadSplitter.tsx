@@ -7,9 +7,11 @@ interface LoadSplitterProps {
   splitMode: 'even' | 'custom';
   loads: LoadInfo[];
   tankSize: number;
+  lockedLoads: Set<number>;
   onNumberOfLoadsChange: (n: number) => void;
   onSplitModeChange: (mode: 'even' | 'custom') => void;
   onLoadVolumeChange: (index: number, volume: number) => void;
+  onResetLocks: () => void;
 }
 
 function getBarColor(percentage: number): string {
@@ -25,9 +27,11 @@ const LoadSplitter: React.FC<LoadSplitterProps> = ({
   splitMode,
   loads,
   tankSize,
+  lockedLoads,
   onNumberOfLoadsChange,
   onSplitModeChange,
   onLoadVolumeChange,
+  onResetLocks,
 }) => {
   return (
     <div className="card">
@@ -77,6 +81,15 @@ const LoadSplitter: React.FC<LoadSplitterProps> = ({
             Custom
           </button>
         </div>
+
+        {splitMode === 'custom' && lockedLoads.size > 0 && (
+          <button
+            onClick={onResetLocks}
+            className="text-xs text-gray-500 hover:text-gray-700 font-medium"
+          >
+            Reset Locks
+          </button>
+        )}
       </div>
 
       {/* Load bars */}
@@ -84,8 +97,8 @@ const LoadSplitter: React.FC<LoadSplitterProps> = ({
         {loads.map((load, index) => (
           <div key={index}>
             <div className="flex items-center gap-3">
-              <span className="text-sm font-medium text-gray-500 w-8">
-                #{load.loadNumber}
+              <span className="text-sm font-medium text-gray-500 w-8" title={splitMode === 'custom' && lockedLoads.has(index) ? 'Locked — won\'t change when you adjust other loads' : ''}>
+                #{load.loadNumber}{splitMode === 'custom' && lockedLoads.has(index) ? ' \uD83D\uDD12' : ''}
               </span>
 
               <div className="flex-1">

@@ -59,44 +59,56 @@ export function calculateEvenSplit(
 
 /**
  * Redistribute load volumes when a user changes one load's volume in custom mode.
- * Adjusts all OTHER loads proportionally so total remains the same.
+ * Locked loads (previously set by user) are not touched — only unlocked loads
+ * receive the redistributed volume.
  *
  * @param loadVolumes   Current array of per-load volumes
  * @param changedIndex  Index of the load the user changed
  * @param newVolume     New volume for that load (clamped to 0..tankSize)
  * @param totalVolume   The total volume that must be distributed
  * @param tankSize      Max per-load volume
+ * @param lockedIndices Indices of loads that should not be adjusted
  */
 export function redistributeLoadVolumes(
   loadVolumes: number[],
   changedIndex: number,
   newVolume: number,
   totalVolume: number,
-  tankSize: number
+  tankSize: number,
+  lockedIndices: Set<number> = new Set()
 ): number[] {
   const clamped = Math.max(0, Math.min(newVolume, tankSize));
-  const remaining = totalVolume - clamped;
-  const otherIndices = loadVolumes
-    .map((_, i) => i)
-    .filter((i) => i !== changedIndex);
-
-  const otherSum = otherIndices.reduce((s, i) => s + loadVolumes[i], 0);
-
   const result = [...loadVolumes];
   result[changedIndex] = clamped;
 
-  if (otherSum === 0) {
-    // Distribute remaining evenly among other loads
-    const each = remaining / otherIndices.length;
-    otherIndices.forEach((i) => {
-      result[i] = Math.min(Math.round(each * 100) / 100, tankSize);
+  // Sum of locked loads (excluding the one being changed)
+  const lockedSum = loadVolumes.reduce((s, v, i) => {
+    if (i !== changedIndex && lockedIndices.has(i)) return s + v;
+    return s;
+  }, 0);
+
+  const remaining = totalVolume - clamped - lockedSum;
+
+  const adjustableIndices = loadVolumes
+    .map((_, i) => i)
+    .filter((i) => i !== changedIndex && !lockedIndices.has(i));
+
+  if (adjustableIndices.length === 0) return result;
+
+  const adjustableSum = adjustableIndices.reduce((s, i) => s + loadVolumes[i], 0);
+
+  if (adjustableSum === 0) {
+    // Distribute remaining evenly among adjustable loads
+    const each = remaining / adjustableIndices.length;
+    adjustableIndices.forEach((i) => {
+      result[i] = Math.min(Math.round(Math.max(0, each) * 100) / 100, tankSize);
     });
   } else {
-    // Proportional redistribution
-    otherIndices.forEach((i) => {
-      const proportion = loadVolumes[i] / otherSum;
+    // Proportional redistribution among adjustable loads only
+    adjustableIndices.forEach((i) => {
+      const proportion = loadVolumes[i] / adjustableSum;
       result[i] = Math.min(
-        Math.round(remaining * proportion * 100) / 100,
+        Math.round(Math.max(0, remaining * proportion) * 100) / 100,
         tankSize
       );
     });
