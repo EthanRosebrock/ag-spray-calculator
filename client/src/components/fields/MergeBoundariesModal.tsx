@@ -334,7 +334,7 @@ const MergeBoundariesModal: React.FC<MergeBoundariesModalProps> = ({ onMerge, on
               <button
                 onClick={handleApply}
                 className="btn-primary flex-1"
-                disabled={assignedCount === 0 || duplicateCheck.size > 0 || applying}
+                disabled={assignedCount === 0 || applying}
               >
                 {applying
                   ? 'Applying...'
