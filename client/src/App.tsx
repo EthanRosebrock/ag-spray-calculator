@@ -6,6 +6,7 @@ import FieldsPage from './components/fields/FieldsPage';
 import MapPage from './components/map/MapPage';
 import SettingsPage from './components/settings/SettingsPage';
 import { migrateLocalStorageToSupabase } from './utils/storageService';
+import { checkSupabaseHealth, supabaseConfigured } from './utils/supabaseClient';
 import './index.css';
 
 type View = 'calculator' | 'weather' | 'records' | 'fields' | 'map' | 'settings';
@@ -22,14 +23,34 @@ const NAV_ITEMS: { key: View; label: string }[] = [
 function App() {
   const [view, setView] = useState<View>('calculator');
   const [ready, setReady] = useState(false);
+  const [syncWarning, setSyncWarning] = useState('');
 
   useEffect(() => {
-    migrateLocalStorageToSupabase().then((didMigrate) => {
-      if (didMigrate) {
-        console.log('Migrated localStorage data to Supabase');
+    const init = async () => {
+      // Check Supabase connectivity
+      if (supabaseConfigured) {
+        const health = await checkSupabaseHealth();
+        if (!health.ok) {
+          console.error('Supabase sync unavailable:', health.error);
+          setSyncWarning('Cloud sync unavailable — data is saved to this browser only.');
+        } else {
+          console.log('Supabase connected successfully');
+        }
       }
+
+      // Run migration if needed
+      try {
+        const didMigrate = await migrateLocalStorageToSupabase();
+        if (didMigrate) {
+          console.log('Migrated localStorage data to Supabase');
+        }
+      } catch (err) {
+        console.error('Migration failed:', err);
+      }
+
       setReady(true);
-    }).catch(() => setReady(true));
+    };
+    init();
   }, []);
 
   const renderPage = () => {
@@ -71,6 +92,13 @@ function App() {
           </nav>
         </div>
       </header>
+
+      {syncWarning && (
+        <div className="bg-yellow-50 border-b border-yellow-200 px-4 py-2 text-sm text-yellow-800 flex items-center justify-between flex-shrink-0">
+          <span>{syncWarning}</span>
+          <button onClick={() => setSyncWarning('')} className="text-yellow-600 hover:text-yellow-800 ml-4 font-medium">Dismiss</button>
+        </div>
+      )}
 
       <main className={`flex-1 min-h-0 ${view === 'map' ? '' : 'container mx-auto px-4 py-4 sm:py-8 overflow-y-auto'}`}>
         {ready ? renderPage() : (

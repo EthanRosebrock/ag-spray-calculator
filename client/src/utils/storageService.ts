@@ -141,7 +141,10 @@ export async function saveProduct(product: Product): Promise<void> {
   saveJSON(KEYS.products, cached);
   if (supabaseConfigured) {
     const row = toSnakeCase(product as any);
-    supabase.from('products').upsert(row).then(() => {}, () => {});
+    supabase.from('products').upsert(row).then(
+      ({ error }) => { if (error) console.error('Supabase products sync error:', error.message); },
+      (err) => console.error('Supabase products network error:', err)
+    );
   }
 }
 
@@ -149,7 +152,10 @@ export async function deleteProduct(id: string): Promise<void> {
   const cached = (loadJSON<Product[]>(KEYS.products) || []).filter((p) => p.id !== id);
   saveJSON(KEYS.products, cached);
   if (supabaseConfigured) {
-    supabase.from('products').delete().eq('id', id).then(() => {}, () => {});
+    supabase.from('products').delete().eq('id', id).then(
+      ({ error }) => { if (error) console.error('Supabase products delete error:', error.message); },
+      (err) => console.error('Supabase products network error:', err)
+    );
   }
 }
 
@@ -230,7 +236,10 @@ export async function saveField(field: Field): Promise<void> {
   // Sync to Supabase in the background (don't block on it)
   if (supabaseConfigured) {
     const row = toSnakeCase(field as any);
-    supabase.from('fields').upsert(row).then(() => {}, () => {});
+    supabase.from('fields').upsert(row).then(
+      ({ error }) => { if (error) console.error('Supabase fields sync error:', error.message); },
+      (err) => console.error('Supabase fields network error:', err)
+    );
   }
 }
 
@@ -238,7 +247,10 @@ export async function deleteField(id: string): Promise<void> {
   const cached = (loadJSON<Field[]>(KEYS.fields) || []).filter((f) => f.id !== id);
   saveJSON(KEYS.fields, cached);
   if (supabaseConfigured) {
-    supabase.from('fields').delete().eq('id', id).then(() => {}, () => {});
+    supabase.from('fields').delete().eq('id', id).then(
+      ({ error }) => { if (error) console.error('Supabase fields delete error:', error.message); },
+      (err) => console.error('Supabase fields network error:', err)
+    );
   }
 }
 
@@ -268,7 +280,10 @@ export async function saveCalculatorDefaults(defaults: Partial<CalculatorDefault
   const merged = { ...current, ...defaults };
   saveJSON(KEYS.calculatorDefaults, merged);
   if (supabaseConfigured) {
-    supabase.from('settings').upsert({ key: 'calculator_defaults', value: merged }).then(() => {}, () => {});
+    supabase.from('settings').upsert({ key: 'calculator_defaults', value: merged }).then(
+      ({ error }) => { if (error) console.error('Supabase settings sync error:', error.message); },
+      (err) => console.error('Supabase settings network error:', err)
+    );
   }
 }
 
@@ -296,7 +311,10 @@ export async function getTankPresets(): Promise<number[]> {
 export async function saveTankPresets(presets: number[]): Promise<void> {
   saveJSON(KEYS.tankPresets, presets);
   if (supabaseConfigured) {
-    supabase.from('settings').upsert({ key: 'tank_presets', value: presets }).then(() => {}, () => {});
+    supabase.from('settings').upsert({ key: 'tank_presets', value: presets }).then(
+      ({ error }) => { if (error) console.error('Supabase settings sync error:', error.message); },
+      (err) => console.error('Supabase settings network error:', err)
+    );
   }
 }
 
@@ -324,7 +342,10 @@ export async function getCarrierPresets(): Promise<number[]> {
 export async function saveCarrierPresets(presets: number[]): Promise<void> {
   saveJSON(KEYS.carrierPresets, presets);
   if (supabaseConfigured) {
-    supabase.from('settings').upsert({ key: 'carrier_presets', value: presets }).then(() => {}, () => {});
+    supabase.from('settings').upsert({ key: 'carrier_presets', value: presets }).then(
+      ({ error }) => { if (error) console.error('Supabase settings sync error:', error.message); },
+      (err) => console.error('Supabase settings network error:', err)
+    );
   }
 }
 
@@ -357,7 +378,10 @@ export async function saveRecord(record: SprayRecord): Promise<void> {
   saveJSON(KEYS.records, cached);
   if (supabaseConfigured) {
     const row = toSnakeCase(record as any);
-    supabase.from('spray_records').upsert(row).then(() => {}, () => {});
+    supabase.from('spray_records').upsert(row).then(
+      ({ error }) => { if (error) console.error('Supabase records sync error:', error.message); },
+      (err) => console.error('Supabase records network error:', err)
+    );
   }
 }
 
@@ -365,7 +389,10 @@ export async function deleteRecord(id: string): Promise<void> {
   const cached = (loadJSON<SprayRecord[]>(KEYS.records) || []).filter((r) => r.id !== id);
   saveJSON(KEYS.records, cached);
   if (supabaseConfigured) {
-    supabase.from('spray_records').delete().eq('id', id).then(() => {}, () => {});
+    supabase.from('spray_records').delete().eq('id', id).then(
+      ({ error }) => { if (error) console.error('Supabase records delete error:', error.message); },
+      (err) => console.error('Supabase records network error:', err)
+    );
   }
 }
 
@@ -398,7 +425,10 @@ export async function saveRoute(route: TenderRoute): Promise<void> {
   saveJSON(KEYS.routes, cached);
   if (supabaseConfigured) {
     const row = toSnakeCase(route as any);
-    supabase.from('tender_routes').upsert(row).then(() => {}, () => {});
+    supabase.from('tender_routes').upsert(row).then(
+      ({ error }) => { if (error) console.error('Supabase routes sync error:', error.message); },
+      (err) => console.error('Supabase routes network error:', err)
+    );
   }
 }
 
@@ -406,7 +436,10 @@ export async function deleteRoute(id: string): Promise<void> {
   const cached = (loadJSON<TenderRoute[]>(KEYS.routes) || []).filter((r) => r.id !== id);
   saveJSON(KEYS.routes, cached);
   if (supabaseConfigured) {
-    supabase.from('tender_routes').delete().eq('id', id).then(() => {}, () => {});
+    supabase.from('tender_routes').delete().eq('id', id).then(
+      ({ error }) => { if (error) console.error('Supabase routes delete error:', error.message); },
+      (err) => console.error('Supabase routes network error:', err)
+    );
   }
 }
 
@@ -439,7 +472,10 @@ export async function savePin(pin: SavedPin): Promise<void> {
   saveJSON(KEYS.pins, cached);
   if (supabaseConfigured) {
     const row = toSnakeCase(pin as any);
-    supabase.from('saved_pins').upsert(row).then(() => {}, () => {});
+    supabase.from('saved_pins').upsert(row).then(
+      ({ error }) => { if (error) console.error('Supabase pins sync error:', error.message); },
+      (err) => console.error('Supabase pins network error:', err)
+    );
   }
 }
 
@@ -447,7 +483,10 @@ export async function deletePin(id: string): Promise<void> {
   const cached = (loadJSON<SavedPin[]>(KEYS.pins) || []).filter((p) => p.id !== id);
   saveJSON(KEYS.pins, cached);
   if (supabaseConfigured) {
-    supabase.from('saved_pins').delete().eq('id', id).then(() => {}, () => {});
+    supabase.from('saved_pins').delete().eq('id', id).then(
+      ({ error }) => { if (error) console.error('Supabase pins delete error:', error.message); },
+      (err) => console.error('Supabase pins network error:', err)
+    );
   }
 }
 
@@ -488,7 +527,10 @@ export async function getFarmLocation(): Promise<LocationData> {
 export async function saveFarmLocation(location: LocationData): Promise<void> {
   saveJSON(KEYS.farmLocation, location);
   if (supabaseConfigured) {
-    supabase.from('settings').upsert({ key: 'farm_location', value: location }).then(() => {}, () => {});
+    supabase.from('settings').upsert({ key: 'farm_location', value: location }).then(
+      ({ error }) => { if (error) console.error('Supabase settings sync error:', error.message); },
+      (err) => console.error('Supabase settings network error:', err)
+    );
   }
 }
 
