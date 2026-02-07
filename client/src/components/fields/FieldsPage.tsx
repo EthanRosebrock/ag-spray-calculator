@@ -181,11 +181,11 @@ const FieldsPage: React.FC = () => {
     }
 
     if (duplicateIds.length === 0) {
-      alert('No duplicate fields found.');
+      window.alert('No duplicate fields found.');
       return;
     }
 
-    if (confirm(`Found ${duplicateIds.length} duplicate field(s). Remove them?`)) {
+    if (window.confirm(`Found ${duplicateIds.length} duplicate field(s). Remove them?`)) {
       for (const id of duplicateIds) {
         await deleteField(id);
       }
