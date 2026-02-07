@@ -98,30 +98,28 @@ const RecordModal: React.FC<RecordModalProps> = ({ prefill, onSave, onClose }) =
     for (const field of sortedFields) {
       const subFieldsForYear = field.subFields?.filter((sf) => sf.cropYear === cropYear) || [];
 
-      if (subFieldsForYear.length > 0) {
-        // Show sub-fields instead of parent
-        for (const sf of subFieldsForYear) {
-          items.push({
-            id: `${field.id}:${sf.id}`,
-            fieldId: field.id,
-            name: sf.name,
-            displayName: `${field.name} - ${sf.name}`,
-            acres: sf.acres,
-            isSubField: true,
-            subFieldId: sf.id,
-            parentFieldName: field.name,
-            fieldNumber: field.fieldNumber,
-          });
-        }
-      } else {
-        // Show parent field normally
+      // Always show parent field first
+      items.push({
+        id: field.id,
+        fieldId: field.id,
+        name: field.name,
+        displayName: field.name,
+        acres: field.acres,
+        isSubField: false,
+        fieldNumber: field.fieldNumber,
+      });
+
+      // Then show sub-fields for current crop year (indented under parent)
+      for (const sf of subFieldsForYear) {
         items.push({
-          id: field.id,
+          id: `${field.id}:${sf.id}`,
           fieldId: field.id,
-          name: field.name,
-          displayName: field.name,
-          acres: field.acres,
-          isSubField: false,
+          name: sf.name,
+          displayName: `↳ ${sf.name}`,
+          acres: sf.acres,
+          isSubField: true,
+          subFieldId: sf.id,
+          parentFieldName: field.name,
           fieldNumber: field.fieldNumber,
         });
       }
