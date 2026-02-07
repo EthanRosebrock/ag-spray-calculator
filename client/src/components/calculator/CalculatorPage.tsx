@@ -48,9 +48,17 @@ const CalculatorPage: React.FC = () => {
       subFieldId?: string;
       parentFieldName?: string;
       farmName?: string;
+      fieldNumber?: string;
     }> = [];
 
-    for (const field of fields) {
+    // Sort fields by field number first
+    const sortedFields = [...fields].sort((a, b) => {
+      const numA = a.fieldNumber || '';
+      const numB = b.fieldNumber || '';
+      return numA.localeCompare(numB, undefined, { numeric: true });
+    });
+
+    for (const field of sortedFields) {
       const subFieldsForYear = field.subFields?.filter(sf => sf.cropYear === cropYear) || [];
 
       if (subFieldsForYear.length > 0) {
@@ -66,6 +74,7 @@ const CalculatorPage: React.FC = () => {
             subFieldId: sf.id,
             parentFieldName: field.name,
             farmName: field.farmName,
+            fieldNumber: field.fieldNumber,
           });
         }
       } else {
@@ -78,6 +87,7 @@ const CalculatorPage: React.FC = () => {
           acres: field.acres,
           isSubField: false,
           farmName: field.farmName,
+          fieldNumber: field.fieldNumber,
         });
       }
     }
@@ -214,7 +224,8 @@ const CalculatorPage: React.FC = () => {
               const q = fieldSearch.toLowerCase();
               return (
                 item.displayName.toLowerCase().includes(q) ||
-                (item.farmName && item.farmName.toLowerCase().includes(q))
+                (item.farmName && item.farmName.toLowerCase().includes(q)) ||
+                (item.fieldNumber && item.fieldNumber.toLowerCase().includes(q))
               );
             }).map((item) => {
               const selected = isSelected(item.fieldId, item.subFieldId);
@@ -233,7 +244,7 @@ const CalculatorPage: React.FC = () => {
                     className="rounded text-ag-green-600 cursor-pointer"
                   />
                   <span className="text-sm flex-1 cursor-pointer" onClick={() => toggleField(item.id, item.fieldId, item.acres, item.subFieldId)}>
-                    {item.displayName}{item.farmName && !item.isSubField ? ` — ${item.farmName}` : ''}
+                    {item.fieldNumber && !item.isSubField ? `${item.fieldNumber} - ` : ''}{item.displayName}{item.farmName && !item.isSubField ? ` — ${item.farmName}` : ''}
                   </span>
                   {selected ? (
                     <div className="flex items-center gap-1 text-xs">

@@ -53,9 +53,9 @@ const FieldsPage: React.FC = () => {
     [fields]
   );
 
-  // Filtered list
+  // Filtered and sorted list
   const filtered = useMemo(() => {
-    return fields.filter((f) => {
+    const result = fields.filter((f) => {
       if (searchTerm) {
         const term = searchTerm.toLowerCase();
         const searchable = [
@@ -73,6 +73,12 @@ const FieldsPage: React.FC = () => {
       if (farmFilter && f.farmName !== farmFilter) return false;
       if (microclimateFilter && f.microclimate !== microclimateFilter) return false;
       return true;
+    });
+    // Sort by field number
+    return result.sort((a, b) => {
+      const numA = a.fieldNumber || '';
+      const numB = b.fieldNumber || '';
+      return numA.localeCompare(numB, undefined, { numeric: true });
     });
   }, [fields, searchTerm, cropFilter, farmFilter, microclimateFilter]);
 

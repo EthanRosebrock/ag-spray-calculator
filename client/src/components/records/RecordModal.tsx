@@ -88,7 +88,14 @@ const RecordModal: React.FC<RecordModalProps> = ({ prefill, onSave, onClose }) =
       fieldNumber?: string;
     }> = [];
 
-    for (const field of fields) {
+    // Sort fields by field number first
+    const sortedFields = [...fields].sort((a, b) => {
+      const numA = a.fieldNumber || '';
+      const numB = b.fieldNumber || '';
+      return numA.localeCompare(numB, undefined, { numeric: true });
+    });
+
+    for (const field of sortedFields) {
       const subFieldsForYear = field.subFields?.filter((sf) => sf.cropYear === cropYear) || [];
 
       if (subFieldsForYear.length > 0) {
