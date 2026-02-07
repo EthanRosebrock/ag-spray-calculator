@@ -29,10 +29,6 @@ const FieldModal: React.FC<FieldModalProps> = ({ field, onSave, onClose }) => {
   const [subFields, setSubFields] = useState<SubField[]>(field?.subFields || []);
   const [geoStatus, setGeoStatus] = useState<'idle' | 'locating' | 'error'>('idle');
 
-  // Show sub-fields by default if there are any for the current crop year
-  const hasSubFieldsForYear = (field?.subFields || []).some((sf) => sf.cropYear === cropYear);
-  const [showSubFields, setShowSubFields] = useState(hasSubFieldsForYear);
-
   // Sub-fields for current crop year
   const subFieldsForYear = subFields.filter((sf) => sf.cropYear === cropYear);
   const subFieldsOtherYears = subFields.filter((sf) => sf.cropYear !== cropYear);
@@ -275,87 +271,74 @@ const FieldModal: React.FC<FieldModalProps> = ({ field, onSave, onClose }) => {
             </div>
           )}
 
-          {/* Sub-fields section */}
+          {/* Sub-fields section - always visible */}
           <div className="border-t pt-4 mt-4">
             <div className="flex justify-between items-center mb-3">
               <div>
                 <h3 className="font-medium text-gray-700">Sub-Fields ({cropYear})</h3>
                 <p className="text-xs text-gray-500">Divide this field into sections for different crops</p>
               </div>
-              <button
-                type="button"
-                onClick={() => setShowSubFields(!showSubFields)}
-                className="text-sm text-ag-green-700 hover:text-ag-green-800 font-medium"
-              >
-                {showSubFields ? 'Hide' : subFieldsForYear.length > 0 ? `Show (${subFieldsForYear.length})` : 'Add'}
-              </button>
             </div>
 
-            {showSubFields && (
-              <div className="space-y-3">
-                {subFieldsForYear.length === 0 ? (
-                  <p className="text-sm text-gray-400">No sub-fields for {cropYear}</p>
-                ) : (
-                  subFieldsForYear.map((sf) => (
-                    <div key={sf.id} className="flex gap-2 items-start bg-gray-50 p-2 rounded">
-                      <div className="flex-1 grid grid-cols-3 gap-2">
-                        <input
-                          type="text"
-                          placeholder="Name"
-                          className="input-field text-sm py-1.5"
-                          value={sf.name}
-                          onChange={(e) => updateSubField(sf.id, { name: e.target.value })}
-                        />
-                        <input
-                          type="number"
-                          step="0.1"
-                          placeholder="Acres"
-                          className="input-field text-sm py-1.5"
-                          value={sf.acres || ''}
-                          onChange={(e) => updateSubField(sf.id, { acres: parseFloat(e.target.value) || 0 })}
-                        />
-                        <input
-                          type="text"
-                          placeholder="Crop"
-                          className="input-field text-sm py-1.5"
-                          value={sf.crop}
-                          onChange={(e) => updateSubField(sf.id, { crop: e.target.value })}
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => removeSubField(sf.id)}
-                        className="text-red-400 hover:text-red-600 mt-1.5"
-                      >
-                        &times;
-                      </button>
-                    </div>
-                  ))
-                )}
-
-                <div className="flex justify-between items-center">
+            <div className="space-y-3">
+              {subFieldsForYear.map((sf) => (
+                <div key={sf.id} className="flex gap-2 items-start bg-gray-50 p-2 rounded">
+                  <div className="flex-1 grid grid-cols-3 gap-2">
+                    <input
+                      type="text"
+                      placeholder="Name"
+                      className="input-field text-sm py-1.5"
+                      value={sf.name}
+                      onChange={(e) => updateSubField(sf.id, { name: e.target.value })}
+                    />
+                    <input
+                      type="number"
+                      step="0.1"
+                      placeholder="Acres"
+                      className="input-field text-sm py-1.5"
+                      value={sf.acres || ''}
+                      onChange={(e) => updateSubField(sf.id, { acres: parseFloat(e.target.value) || 0 })}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Crop"
+                      className="input-field text-sm py-1.5"
+                      value={sf.crop}
+                      onChange={(e) => updateSubField(sf.id, { crop: e.target.value })}
+                    />
+                  </div>
                   <button
                     type="button"
-                    onClick={addSubField}
-                    className="text-sm text-ag-green-700 hover:text-ag-green-800 font-medium"
+                    onClick={() => removeSubField(sf.id)}
+                    className="text-red-400 hover:text-red-600 mt-1.5"
                   >
-                    + Add Sub-Field
+                    &times;
                   </button>
-                  {subFieldsForYear.length > 0 && (
-                    <span className={`text-xs ${totalSubFieldAcres > (form.acres || 0) ? 'text-red-600' : 'text-gray-500'}`}>
-                      {totalSubFieldAcres} / {form.acres || 0} ac
-                      {totalSubFieldAcres > (form.acres || 0) && ' (exceeds field size)'}
-                    </span>
-                  )}
                 </div>
+              ))}
 
-                {subFieldsOtherYears.length > 0 && (
-                  <div className="text-xs text-gray-400 mt-2">
-                    {subFieldsOtherYears.length} sub-field{subFieldsOtherYears.length !== 1 ? 's' : ''} in other years
-                  </div>
+              <div className="flex justify-between items-center">
+                <button
+                  type="button"
+                  onClick={addSubField}
+                  className="text-sm text-ag-green-700 hover:text-ag-green-800 font-medium"
+                >
+                  + Add Sub-Field
+                </button>
+                {subFieldsForYear.length > 0 && (
+                  <span className={`text-xs ${totalSubFieldAcres > (form.acres || 0) ? 'text-red-600' : 'text-gray-500'}`}>
+                    {totalSubFieldAcres} / {form.acres || 0} ac
+                    {totalSubFieldAcres > (form.acres || 0) && ' (exceeds field size)'}
+                  </span>
                 )}
               </div>
-            )}
+
+              {subFieldsOtherYears.length > 0 && (
+                <div className="text-xs text-gray-400 mt-2">
+                  {subFieldsOtherYears.length} sub-field{subFieldsOtherYears.length !== 1 ? 's' : ''} in other years
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="flex gap-3 pt-2">
