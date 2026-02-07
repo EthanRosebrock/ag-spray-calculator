@@ -217,8 +217,11 @@ export async function getFields(): Promise<Field[]> {
     }
     if (data.length > 0) {
       const supabaseFields = data.map((row) => toCamelCase(row) as unknown as Field);
-      // Merge with localStorage to preserve subFields if Supabase doesn't have them
+      // Merge with localStorage to preserve subFields and local-only fields
       const localFields = loadJSON<Field[]>(KEYS.fields) || [];
+      const supabaseIds = new Set(supabaseFields.map((f) => f.id));
+
+      // Merge Supabase fields with localStorage data (preserve subFields)
       const merged = supabaseFields.map((sf) => {
         const local = localFields.find((lf) => lf.id === sf.id);
         // Preserve subFields from localStorage if Supabase doesn't have them
@@ -227,8 +230,13 @@ export async function getFields(): Promise<Field[]> {
         }
         return sf;
       });
-      saveJSON(KEYS.fields, merged);
-      return merged;
+
+      // Add any fields that exist only in localStorage (not yet synced to Supabase)
+      const localOnlyFields = localFields.filter((lf) => !supabaseIds.has(lf.id));
+      const allFields = [...merged, ...localOnlyFields];
+
+      saveJSON(KEYS.fields, allFields);
+      return allFields;
     }
     // Supabase empty — don't overwrite localStorage
     return loadJSON<Field[]>(KEYS.fields) || [];

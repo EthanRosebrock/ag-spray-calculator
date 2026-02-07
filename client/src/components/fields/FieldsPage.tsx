@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Field } from '../../types';
 import { getFields, saveField, deleteField } from '../../utils/storageService';
+import { useCropYear } from '../../App';
 import FieldModal from './FieldModal';
 import ImportModal from './ImportModal';
 import BulkEditModal from './BulkEditModal';
 import MergeBoundariesModal from './MergeBoundariesModal';
 
 const FieldsPage: React.FC = () => {
+  const { cropYear } = useCropYear();
   const [fields, setFields] = useState<Field[]>([]);
   const [showFieldModal, setShowFieldModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
@@ -391,6 +393,16 @@ const FieldsPage: React.FC = () => {
                     <div className="font-medium">{field.name}</div>
                     {field.farmName && (
                       <div className="text-xs text-gray-500">{field.farmName}</div>
+                    )}
+                    {field.subFields && field.subFields.filter(sf => sf.cropYear === cropYear).length > 0 && (
+                      <div className="mt-1 space-y-0.5">
+                        {field.subFields.filter(sf => sf.cropYear === cropYear).map(sf => (
+                          <div key={sf.id} className="text-xs text-ag-green-700 flex items-center gap-1">
+                            <span className="text-gray-400">↳</span>
+                            {sf.name} <span className="text-gray-400">({sf.acres} ac{sf.crop ? `, ${sf.crop}` : ''})</span>
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </td>
                   <td className="py-3 px-4">{field.acres > 0 ? field.acres.toFixed(1) : '—'}</td>
