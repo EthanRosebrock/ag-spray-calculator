@@ -147,11 +147,64 @@ const FieldsPage: React.FC = () => {
     reload();
   };
 
+  // Find and remove duplicate fields (same name, keeping the one with more data)
+  const removeDuplicates = async () => {
+    const seen = new Map<string, Field>();
+    const duplicateIds: string[] = [];
+
+    for (const field of fields) {
+      const key = field.name.toLowerCase().trim();
+      const existing = seen.get(key);
+
+      if (existing) {
+        // Keep the one with more data (more non-empty fields, boundary, etc.)
+        const scoreField = (f: Field) => {
+          let score = 0;
+          if (f.boundary && f.boundary.length > 0) score += 10;
+          if (f.acres > 0) score += 1;
+          if (f.crop) score += 1;
+          if (f.farmName) score += 1;
+          if (f.latitude && f.longitude) score += 1;
+          if (f.subFields && f.subFields.length > 0) score += 5;
+          return score;
+        };
+
+        if (scoreField(field) > scoreField(existing)) {
+          duplicateIds.push(existing.id);
+          seen.set(key, field);
+        } else {
+          duplicateIds.push(field.id);
+        }
+      } else {
+        seen.set(key, field);
+      }
+    }
+
+    if (duplicateIds.length === 0) {
+      alert('No duplicate fields found.');
+      return;
+    }
+
+    if (confirm(`Found ${duplicateIds.length} duplicate field(s). Remove them?`)) {
+      for (const id of duplicateIds) {
+        await deleteField(id);
+      }
+      await reload();
+    }
+  };
+
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">Fields</h1>
         <div className="flex gap-2">
+          <button
+            onClick={removeDuplicates}
+            className="btn-secondary text-sm py-2 px-4"
+            title="Remove fields with duplicate names"
+          >
+            Remove Duplicates
+          </button>
           <button
             onClick={() => setShowMergeModal(true)}
             className="btn-secondary text-sm py-2 px-4"

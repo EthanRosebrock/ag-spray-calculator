@@ -28,7 +28,10 @@ const FieldModal: React.FC<FieldModalProps> = ({ field, onSave, onClose }) => {
   });
   const [subFields, setSubFields] = useState<SubField[]>(field?.subFields || []);
   const [geoStatus, setGeoStatus] = useState<'idle' | 'locating' | 'error'>('idle');
-  const [showSubFields, setShowSubFields] = useState(false);
+
+  // Show sub-fields by default if there are any for the current crop year
+  const hasSubFieldsForYear = (field?.subFields || []).some((sf) => sf.cropYear === cropYear);
+  const [showSubFields, setShowSubFields] = useState(hasSubFieldsForYear);
 
   // Sub-fields for current crop year
   const subFieldsForYear = subFields.filter((sf) => sf.cropYear === cropYear);

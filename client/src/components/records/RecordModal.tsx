@@ -48,6 +48,7 @@ const RecordModal: React.FC<RecordModalProps> = ({ prefill, onSave, onClose }) =
   const [manualFieldName, setManualFieldName] = useState(
     prefill?.fieldIds?.length || prefill?.fieldId || prefill?.sprayedFields?.length ? '' : (prefill?.fieldName || '')
   );
+  const [fieldSearch, setFieldSearch] = useState('');
   const [operator, setOperator] = useState(prefill?.operator || '');
   const [tankSize, setTankSize] = useState(prefill?.tankSize || 300);
   const [carrierRate, setCarrierRate] = useState(prefill?.carrierRate || 20);
@@ -269,8 +270,24 @@ const RecordModal: React.FC<RecordModalProps> = ({ prefill, onSave, onClose }) =
             </label>
             {fields.length > 0 ? (
               <div className="space-y-2">
+                {selectableItems.length > 5 && (
+                  <input
+                    type="text"
+                    placeholder="Search fields..."
+                    value={fieldSearch}
+                    onChange={(e) => setFieldSearch(e.target.value)}
+                    className="input-field text-sm"
+                  />
+                )}
                 <div className="border rounded-lg max-h-48 overflow-y-auto p-2 space-y-1">
-                  {selectableItems.map((item) => {
+                  {selectableItems.filter((item) => {
+                    if (!fieldSearch) return true;
+                    const q = fieldSearch.toLowerCase();
+                    return (
+                      item.displayName.toLowerCase().includes(q) ||
+                      (item.fieldNumber && item.fieldNumber.toLowerCase().includes(q))
+                    );
+                  }).map((item) => {
                     const selected = isSelected(item.fieldId, item.subFieldId);
                     const selection = getSelection(item.fieldId, item.subFieldId);
                     return (
