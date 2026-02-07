@@ -41,6 +41,7 @@ const KEYS = {
   routes: 'agrispray_routes',
   pins: 'agrispray_pins',
   farmLocation: 'farmLocation',
+  cropYear: 'agrispray_crop_year',
 };
 
 function loadJSON<T>(key: string): T | null {
@@ -537,6 +538,16 @@ export async function saveFarmLocation(location: LocationData): Promise<void> {
 // Synchronous version for code paths that can't await (e.g. WeatherService static methods)
 export function getFarmLocationSync(): LocationData {
   return loadJSON<LocationData>(KEYS.farmLocation) || DEFAULT_FARM_LOCATION;
+}
+
+// --- Crop Year ---
+export function getCropYear(): string {
+  const stored = loadJSON<string>(KEYS.cropYear);
+  return stored || new Date().getFullYear().toString();
+}
+
+export function saveCropYear(year: string): void {
+  saveJSON(KEYS.cropYear, year);
 }
 
 // --- One-time localStorage → Supabase migration ---

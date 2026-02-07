@@ -2,14 +2,17 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { SprayRecord } from '../../types';
 import { getRecords, saveRecord, deleteRecord } from '../../utils/storageService';
 import RecordModal from './RecordModal';
+import { useCropYear } from '../../App';
 
 const RecordsPage: React.FC = () => {
+  const { cropYear } = useCropYear();
   const [records, setRecords] = useState<SprayRecord[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [dateFilter, setDateFilter] = useState('');
+  const [showAllYears, setShowAllYears] = useState(false);
 
   const reload = async () => {
     const all = await getRecords();
@@ -21,8 +24,19 @@ const RecordsPage: React.FC = () => {
     reload();
   }, []);
 
+  // Helper to get record's crop year (from cropYear field or extract from date for legacy)
+  const getRecordCropYear = (r: SprayRecord): string => {
+    if (r.cropYear) return r.cropYear;
+    // Extract year from date for legacy records
+    return r.date.split('-')[0];
+  };
+
   const filtered = useMemo(() => {
     return records.filter((r) => {
+      // Filter by crop year unless showing all years
+      if (!showAllYears && getRecordCropYear(r) !== cropYear) {
+        return false;
+      }
       if (searchTerm) {
         const term = searchTerm.toLowerCase();
         const fieldMatch = r.fieldNames
@@ -37,7 +51,7 @@ const RecordsPage: React.FC = () => {
       }
       return true;
     });
-  }, [records, searchTerm, dateFilter]);
+  }, [records, searchTerm, dateFilter, cropYear, showAllYears]);
 
   const handleSave = async (record: SprayRecord) => {
     await saveRecord(record);
@@ -102,28 +116,44 @@ const RecordsPage: React.FC = () => {
 
       {/* Filters */}
       {records.length > 0 && (
-        <div className="flex gap-3">
-          <input
-            type="text"
-            placeholder="Search by field or operator..."
-            className="input-field flex-1"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-          <input
-            type="month"
-            className="input-field w-auto"
-            value={dateFilter}
-            onChange={(e) => setDateFilter(e.target.value)}
-          />
-          {(searchTerm || dateFilter) && (
-            <button
-              onClick={() => { setSearchTerm(''); setDateFilter(''); }}
-              className="btn-secondary text-sm py-2 px-3"
-            >
-              Clear
-            </button>
-          )}
+        <div className="space-y-2">
+          <div className="flex gap-3">
+            <input
+              type="text"
+              placeholder="Search by field or operator..."
+              className="input-field flex-1"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+            <input
+              type="month"
+              className="input-field w-auto"
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value)}
+            />
+            {(searchTerm || dateFilter) && (
+              <button
+                onClick={() => { setSearchTerm(''); setDateFilter(''); }}
+                className="btn-secondary text-sm py-2 px-3"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showAllYears}
+                onChange={(e) => setShowAllYears(e.target.checked)}
+                className="rounded text-ag-green-600"
+              />
+              Show all years
+            </label>
+            {!showAllYears && (
+              <span className="text-xs text-gray-400">Showing records for {cropYear}</span>
+            )}
+          </div>
         </div>
       )}
 
@@ -210,6 +240,29 @@ const RecordsPage: React.FC = () => {
                     </div>
                   </div>
 
+                  {/* Sprayed Fields with partial acres */}
+                  {record.sprayedFields && record.sprayedFields.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-700 mb-2">Fields Sprayed</h4>
+                      <div className="space-y-1">
+                        {record.sprayedFields.map((sf, i) => (
+                          <div key={i} className="flex justify-between text-sm bg-gray-50 p-2 rounded">
+                            <span>
+                              {sf.subFieldName ? `${sf.fieldName} - ${sf.subFieldName}` : sf.fieldName}
+                            </span>
+                            <span className="text-gray-600">
+                              {sf.sprayedAcres === sf.totalAcres ? (
+                                <>{sf.totalAcres} ac</>
+                              ) : (
+                                <>{sf.sprayedAcres} / {sf.totalAcres} ac <span className="text-xs text-amber-600">(partial)</span></>
+                              )}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {record.products.length > 0 && (
                     <div>
                       <h4 className="text-sm font-medium text-gray-700 mb-2">Products</h4>
@@ -232,6 +285,12 @@ const RecordsPage: React.FC = () => {
                       {record.weather.temperature}&deg;F, {record.weather.windSpeed} mph{' '}
                       {record.weather.windDirection}, {record.weather.humidity}% RH
                       <span className="text-xs text-gray-500 ml-2">({record.weather.source})</span>
+                    </div>
+                  )}
+
+                  {record.cropYear && (
+                    <div className="text-xs text-gray-400">
+                      Crop Year: {record.cropYear}
                     </div>
                   )}
 

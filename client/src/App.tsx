@@ -1,13 +1,26 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, createContext, useContext } from 'react';
 import CalculatorPage from './components/calculator/CalculatorPage';
 import WeatherPage from './components/weather/WeatherPage';
 import RecordsPage from './components/records/RecordsPage';
 import FieldsPage from './components/fields/FieldsPage';
 import MapPage from './components/map/MapPage';
 import SettingsPage from './components/settings/SettingsPage';
-import { migrateLocalStorageToSupabase } from './utils/storageService';
+import { migrateLocalStorageToSupabase, getCropYear, saveCropYear } from './utils/storageService';
 import { checkSupabaseHealth, supabaseConfigured } from './utils/supabaseClient';
 import './index.css';
+
+// Crop Year Context
+interface CropYearContextType {
+  cropYear: string;
+  setCropYear: (year: string) => void;
+}
+
+const CropYearContext = createContext<CropYearContextType>({
+  cropYear: new Date().getFullYear().toString(),
+  setCropYear: () => {},
+});
+
+export const useCropYear = () => useContext(CropYearContext);
 
 type View = 'calculator' | 'weather' | 'records' | 'fields' | 'map' | 'settings';
 
@@ -24,6 +37,16 @@ function App() {
   const [view, setView] = useState<View>('calculator');
   const [ready, setReady] = useState(false);
   const [syncWarning, setSyncWarning] = useState('');
+  const [cropYear, setCropYearState] = useState<string>(() => getCropYear());
+
+  // Generate year options: current year +/- 1
+  const currentYear = new Date().getFullYear();
+  const yearOptions = [currentYear - 1, currentYear, currentYear + 1];
+
+  const setCropYear = (year: string) => {
+    setCropYearState(year);
+    saveCropYear(year);
+  };
 
   useEffect(() => {
     const init = async () => {
@@ -71,10 +94,21 @@ function App() {
   };
 
   return (
+    <CropYearContext.Provider value={{ cropYear, setCropYear }}>
     <div className="bg-gray-50 flex flex-col h-screen" style={{ height: '100dvh' }}>
       <header className="bg-white shadow-sm border-b flex-shrink-0">
         <div className="flex items-center px-3 py-2 sm:px-4 sm:py-3 gap-3">
           <h1 className="text-lg sm:text-2xl font-bold text-gray-900 flex-shrink-0">AgriSpray</h1>
+          <select
+            value={cropYear}
+            onChange={(e) => setCropYear(e.target.value)}
+            className="text-sm border border-gray-300 rounded px-2 py-1 bg-white text-gray-700 focus:ring-1 focus:ring-ag-green-500 focus:border-ag-green-500 flex-shrink-0"
+            title="Crop Year"
+          >
+            {yearOptions.map((y) => (
+              <option key={y} value={y.toString()}>{y}</option>
+            ))}
+          </select>
           <nav className="flex items-center gap-1 overflow-x-auto no-scrollbar flex-1 justify-end">
             {NAV_ITEMS.map((item) => (
               <button
@@ -108,6 +142,7 @@ function App() {
         )}
       </main>
     </div>
+    </CropYearContext.Provider>
   );
 }
 

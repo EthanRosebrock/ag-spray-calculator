@@ -1,6 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { SprayRecord, SprayRecordProduct, Field } from '../../types';
+import { SprayRecord, SprayRecordProduct, SprayedField, Field } from '../../types';
 import { getFields } from '../../utils/storageService';
+import { useCropYear } from '../../App';
+
+// Field selection with partial acre support
+interface FieldSelection {
+  fieldId: string;
+  sprayedAcres: number;
+  subFieldId?: string;
+}
 
 interface RecordModalProps {
   /** Pre-filled data from calculator (partial record) */
@@ -10,13 +18,35 @@ interface RecordModalProps {
 }
 
 const RecordModal: React.FC<RecordModalProps> = ({ prefill, onSave, onClose }) => {
+  const { cropYear } = useCropYear();
   const [fields, setFields] = useState<Field[]>([]);
   const [date, setDate] = useState(prefill?.date || new Date().toISOString().split('T')[0]);
-  const [selectedFieldIds, setSelectedFieldIds] = useState<string[]>(
-    prefill?.fieldIds || (prefill?.fieldId ? [prefill.fieldId] : [])
-  );
+
+  // Initialize field selections from prefill sprayedFields or fallback to legacy fieldIds
+  const initializeSelections = (): FieldSelection[] => {
+    if (prefill?.sprayedFields) {
+      return prefill.sprayedFields.map((sf) => ({
+        fieldId: sf.fieldId,
+        sprayedAcres: sf.sprayedAcres,
+        subFieldId: sf.subFieldId,
+      }));
+    }
+    if (prefill?.fieldIds) {
+      return prefill.fieldIds.map((id) => ({
+        fieldId: id,
+        sprayedAcres: 0, // Will be set after fields load
+        subFieldId: undefined,
+      }));
+    }
+    if (prefill?.fieldId) {
+      return [{ fieldId: prefill.fieldId, sprayedAcres: 0, subFieldId: undefined }];
+    }
+    return [];
+  };
+
+  const [fieldSelections, setFieldSelections] = useState<FieldSelection[]>(initializeSelections);
   const [manualFieldName, setManualFieldName] = useState(
-    prefill?.fieldIds?.length || prefill?.fieldId ? '' : (prefill?.fieldName || '')
+    prefill?.fieldIds?.length || prefill?.fieldId || prefill?.sprayedFields?.length ? '' : (prefill?.fieldName || '')
   );
   const [operator, setOperator] = useState(prefill?.operator || '');
   const [tankSize, setTankSize] = useState(prefill?.tankSize || 300);
@@ -26,21 +56,110 @@ const RecordModal: React.FC<RecordModalProps> = ({ prefill, onSave, onClose }) =
   const [products, setProducts] = useState<SprayRecordProduct[]>(prefill?.products || []);
 
   useEffect(() => {
-    getFields().then(setFields);
-  }, []);
+    getFields().then((loadedFields) => {
+      setFields(loadedFields);
+      // If we have legacy field IDs without sprayedAcres, populate them now
+      if (!prefill?.sprayedFields && (prefill?.fieldIds || prefill?.fieldId)) {
+        setFieldSelections((prev) =>
+          prev.map((sel) => {
+            if (sel.sprayedAcres === 0) {
+              const field = loadedFields.find((f) => f.id === sel.fieldId);
+              return { ...sel, sprayedAcres: field?.acres || 0 };
+            }
+            return sel;
+          })
+        );
+      }
+    });
+  }, [prefill?.fieldIds, prefill?.fieldId, prefill?.sprayedFields]);
 
-  const toggleField = (id: string) => {
-    setSelectedFieldIds((prev) => {
-      const next = prev.includes(id) ? prev.filter((fid) => fid !== id) : [...prev, id];
-      // Auto-sum acres from selected fields
-      const totalAcres = next.reduce((sum, fid) => {
-        const f = fields.find((field) => field.id === fid);
-        return sum + (f?.acres || 0);
-      }, 0);
+  // Get selectable items - either sub-fields (for current crop year) or parent fields
+  const getSelectableItems = () => {
+    const items: Array<{
+      id: string;
+      fieldId: string;
+      name: string;
+      displayName: string;
+      acres: number;
+      isSubField: boolean;
+      subFieldId?: string;
+      parentFieldName?: string;
+      fieldNumber?: string;
+    }> = [];
+
+    for (const field of fields) {
+      const subFieldsForYear = field.subFields?.filter((sf) => sf.cropYear === cropYear) || [];
+
+      if (subFieldsForYear.length > 0) {
+        // Show sub-fields instead of parent
+        for (const sf of subFieldsForYear) {
+          items.push({
+            id: `${field.id}:${sf.id}`,
+            fieldId: field.id,
+            name: sf.name,
+            displayName: `${field.name} - ${sf.name}`,
+            acres: sf.acres,
+            isSubField: true,
+            subFieldId: sf.id,
+            parentFieldName: field.name,
+            fieldNumber: field.fieldNumber,
+          });
+        }
+      } else {
+        // Show parent field normally
+        items.push({
+          id: field.id,
+          fieldId: field.id,
+          name: field.name,
+          displayName: field.name,
+          acres: field.acres,
+          isSubField: false,
+          fieldNumber: field.fieldNumber,
+        });
+      }
+    }
+    return items;
+  };
+
+  const selectableItems = getSelectableItems();
+
+  const toggleField = (itemId: string, fieldId: string, itemAcres: number, subFieldId?: string) => {
+    setFieldSelections((prev) => {
+      const existingIdx = prev.findIndex(
+        (s) => s.fieldId === fieldId && s.subFieldId === subFieldId
+      );
+      let next: FieldSelection[];
+      if (existingIdx >= 0) {
+        // Remove selection
+        next = prev.filter((_, i) => i !== existingIdx);
+      } else {
+        // Add with full acres by default
+        next = [...prev, { fieldId, sprayedAcres: itemAcres, subFieldId }];
+      }
+      const totalAcres = next.reduce((sum, s) => sum + s.sprayedAcres, 0);
       setAcres(Math.round(totalAcres * 10) / 10);
       return next;
     });
   };
+
+  const updateFieldAcres = (fieldId: string, newAcres: number, subFieldId?: string) => {
+    setFieldSelections((prev) => {
+      const updated = prev.map((s) =>
+        s.fieldId === fieldId && s.subFieldId === subFieldId
+          ? { ...s, sprayedAcres: Math.max(0, newAcres) }
+          : s
+      );
+      const totalAcres = updated.reduce((sum, s) => sum + s.sprayedAcres, 0);
+      setAcres(Math.round(totalAcres * 10) / 10);
+      return updated;
+    });
+  };
+
+  const isSelected = (fieldId: string, subFieldId?: string) =>
+    fieldSelections.some((s) => s.fieldId === fieldId && s.subFieldId === subFieldId);
+
+  const getSelection = (fieldId: string, subFieldId?: string) =>
+    fieldSelections.find((s) => s.fieldId === fieldId && s.subFieldId === subFieldId);
 
   const addProduct = () => {
     setProducts([
@@ -64,9 +183,27 @@ const RecordModal: React.FC<RecordModalProps> = ({ prefill, onSave, onClose }) =
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    const selectedNames = selectedFieldIds
-      .map((id) => fields.find((f) => f.id === id)?.name)
-      .filter(Boolean) as string[];
+    // Build sprayedFields with partial acre data
+    const sprayedFields: SprayedField[] = fieldSelections.map((sel) => {
+      const field = fields.find((f) => f.id === sel.fieldId);
+      const subField = sel.subFieldId
+        ? field?.subFields?.find((sf) => sf.id === sel.subFieldId)
+        : undefined;
+
+      return {
+        fieldId: sel.fieldId,
+        fieldName: field?.name || '',
+        totalAcres: subField ? subField.acres : (field?.acres || 0),
+        sprayedAcres: sel.sprayedAcres,
+        subFieldId: sel.subFieldId,
+        subFieldName: subField?.name,
+      };
+    });
+
+    const selectedNames = sprayedFields.map((sf) =>
+      sf.subFieldName ? `${sf.fieldName} - ${sf.subFieldName}` : sf.fieldName
+    );
+    const selectedFieldIds = Array.from(new Set(fieldSelections.map((s) => s.fieldId)));
 
     const displayName = selectedNames.length > 0
       ? selectedNames.join(', ')
@@ -90,6 +227,8 @@ const RecordModal: React.FC<RecordModalProps> = ({ prefill, onSave, onClose }) =
       weather: prefill?.weather,
       notes: notes || undefined,
       createdAt: new Date().toISOString(),
+      sprayedFields: sprayedFields.length > 0 ? sprayedFields : undefined,
+      cropYear: prefill?.cropYear || cropYear,
     };
 
     onSave(record);
@@ -131,32 +270,55 @@ const RecordModal: React.FC<RecordModalProps> = ({ prefill, onSave, onClose }) =
             {fields.length > 0 ? (
               <div className="space-y-2">
                 <div className="border rounded-lg max-h-48 overflow-y-auto p-2 space-y-1">
-                  {fields.map((f) => (
-                    <label
-                      key={f.id}
-                      className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer hover:bg-gray-50 ${
-                        selectedFieldIds.includes(f.id) ? 'bg-ag-green-50' : ''
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedFieldIds.includes(f.id)}
-                        onChange={() => toggleField(f.id)}
-                        className="rounded text-ag-green-600"
-                      />
-                      <span className="text-sm flex-1">
-                        {f.fieldNumber ? `${f.fieldNumber} - ` : ''}{f.name}
-                      </span>
-                      <span className="text-xs text-gray-400">{f.acres} ac</span>
-                    </label>
-                  ))}
+                  {selectableItems.map((item) => {
+                    const selected = isSelected(item.fieldId, item.subFieldId);
+                    const selection = getSelection(item.fieldId, item.subFieldId);
+                    return (
+                      <div
+                        key={item.id}
+                        className={`flex items-center gap-2 px-2 py-1.5 rounded ${
+                          selected ? 'bg-ag-green-50' : 'hover:bg-gray-50'
+                        } ${item.isSubField ? 'ml-4' : ''}`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selected}
+                          onChange={() => toggleField(item.id, item.fieldId, item.acres, item.subFieldId)}
+                          className="rounded text-ag-green-600 cursor-pointer"
+                        />
+                        <span
+                          className="text-sm flex-1 cursor-pointer"
+                          onClick={() => toggleField(item.id, item.fieldId, item.acres, item.subFieldId)}
+                        >
+                          {item.fieldNumber && !item.isSubField ? `${item.fieldNumber} - ` : ''}{item.displayName}
+                        </span>
+                        {selected ? (
+                          <div className="flex items-center gap-1 text-xs">
+                            <input
+                              type="number"
+                              step="0.1"
+                              min="0"
+                              max={item.acres}
+                              value={selection?.sprayedAcres || 0}
+                              onChange={(e) => updateFieldAcres(item.fieldId, parseFloat(e.target.value) || 0, item.subFieldId)}
+                              onClick={(e) => e.stopPropagation()}
+                              className="w-14 px-1 py-0.5 border border-gray-300 rounded text-right text-xs"
+                            />
+                            <span className="text-gray-400">/ {item.acres} ac</span>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-400">{item.acres} ac</span>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-                {selectedFieldIds.length > 0 && (
+                {fieldSelections.length > 0 && (
                   <div className="text-xs text-gray-500">
-                    {selectedFieldIds.length} field{selectedFieldIds.length !== 1 ? 's' : ''} selected &middot; {acres} ac total
+                    {fieldSelections.length} field{fieldSelections.length !== 1 ? 's' : ''} selected &middot; {acres} ac total
                   </div>
                 )}
-                {selectedFieldIds.length === 0 && (
+                {fieldSelections.length === 0 && (
                   <input
                     type="text"
                     className="input-field"

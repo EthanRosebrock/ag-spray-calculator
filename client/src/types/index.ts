@@ -32,6 +32,8 @@ export interface Field {
   soilType?: string;
   legalDescription?: string;
   farmName?: string;
+  // Sub-fields for multi-planting per crop year
+  subFields?: SubField[];
 }
 
 export interface Product {
@@ -103,6 +105,10 @@ export interface SprayRecord {
   };
   notes?: string;
   createdAt: string;
+  // Partial field spraying details
+  sprayedFields?: SprayedField[]; // Detailed breakdown of sprayed acres per field
+  // Crop year governance
+  cropYear?: string;              // "2024", "2025", etc.
 }
 
 export interface SprayRecordProduct {
@@ -136,4 +142,23 @@ export interface RouteWaypoint {
   latitude: number;
   longitude: number;
   notes?: string;
+}
+
+// --- Partial Field Spraying ---
+export interface SprayedField {
+  fieldId: string;
+  fieldName: string;
+  totalAcres: number;      // Field's full size (reference)
+  sprayedAcres: number;    // Actual acres sprayed
+  subFieldId?: string;     // If spraying a sub-field
+  subFieldName?: string;   // Sub-field name if applicable
+}
+
+// --- Sub-Fields for Multi-Planting ---
+export interface SubField {
+  id: string;
+  name: string;        // "North Section", "Corn Strip"
+  acres: number;       // Portion of parent field
+  crop: string;        // Crop for this section
+  cropYear: string;    // Which year this applies to
 }
