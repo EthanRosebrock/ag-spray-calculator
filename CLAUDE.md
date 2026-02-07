@@ -64,13 +64,19 @@ React 19 + TypeScript SPA using tab-based navigation via state in `App.tsx` (no 
 
 **Load splitting:** `redistributeLoadVolumes()` in `loadCalculations.ts` accepts a `lockedIndices: Set<number>` parameter. Locked loads keep their volume fixed; remaining volume is proportionally distributed among unlocked loads only. The slider UI includes snap-to-full (95% threshold snaps to tankSize), a Fill button, and editable numeric inputs.
 
-**Field selection:** Calculator uses multi-select checkboxes (`selectedFieldIds: string[]`) that auto-sum acres, with a search filter for field/farm name. RecordModal uses the same pattern. Both pass `fieldIds` arrays to `SprayRecord`. The `SprayRecord` type has both legacy `fieldId` (single) and current `fieldIds` (array) fields.
+**Field selection & partial spraying:** Calculator and RecordModal use `FieldSelection[]` (fieldId, sprayedAcres, subFieldId?) to track selected fields with partial acre overrides. Fields are sorted by `fieldNumber` and displayed with inline acre inputs showing `[sprayed] / [total] ac`. The `SprayedField` interface stores per-field breakdown in spray records. Legacy `fieldId`/`fieldIds` arrays are still supported for backward compatibility.
+
+**Sub-fields:** Fields can have `subFields: SubField[]` for dividing a field into crop-specific sections per year. Each SubField has `id`, `name`, `acres`, `crop`, and `cropYear`. In field selection lists, sub-fields appear indented under their parent with ↳ prefix. Sub-fields are filtered by the current crop year from `useCropYear()` context.
+
+**Crop year governance:** Global crop year selector in App header (current year ±1). `useCropYear()` hook provides `cropYear` and `setCropYear`. Stored in localStorage as `agrispray_crop_year`. Records page filters by crop year with "show all years" toggle. Legacy records use year extracted from `date` field.
 
 ### Storage & Sync
 
-**localStorage:** All keys prefixed `agrispray_` (except legacy `farmLocation` and `fieldLocations`). Key entities: `products`, `containers`, `fields`, `records`, `routes`, `pins`, `calculator_defaults`, `tank_presets`, `carrier_presets`. Storage has a version migration system (currently v2) that runs on module load in `storageService.ts`. The v1→v2 migration converts legacy unit strings to structured `measurementUnit` + `rateBasis` pairs.
+**localStorage:** All keys prefixed `agrispray_` (except legacy `farmLocation` and `fieldLocations`). Key entities: `products`, `containers`, `fields`, `records`, `routes`, `pins`, `calculator_defaults`, `tank_presets`, `carrier_presets`, `crop_year`. Storage has a version migration system (currently v2) that runs on module load in `storageService.ts`. The v1→v2 migration converts legacy unit strings to structured `measurementUnit` + `rateBasis` pairs.
 
 **Supabase cloud sync (optional):** Configured via `REACT_APP_SUPABASE_URL` and `REACT_APP_SUPABASE_ANON_KEY` environment variables. When configured, `supabaseClient.ts` provides cloud persistence for products, fields, settings, spray records, tender routes, and saved pins. Falls back to localStorage-only if Supabase is unavailable. A one-time `migrateLocalStorageToSupabase()` runs on app init (converts camelCase → snake_case for DB). App shows a dismissable warning banner if Supabase health check fails on startup.
+
+**Data preservation:** `getFields()` merges Supabase data with localStorage to preserve `subFields` if Supabase lacks the `sub_fields` column, and includes local-only fields not yet synced. This prevents data loss during redeployment or schema migration gaps.
 
 ### Styling
 Tailwind CSS with a custom `ag-green` color palette (50–700 shades) defined in `tailwind.config.js`. Four reusable component classes in `index.css`: `.btn-primary`, `.btn-secondary`, `.input-field`, `.card`.
