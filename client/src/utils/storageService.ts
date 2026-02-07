@@ -216,9 +216,19 @@ export async function getFields(): Promise<Field[]> {
       return loadJSON<Field[]>(KEYS.fields) || [];
     }
     if (data.length > 0) {
-      const fields = data.map((row) => toCamelCase(row) as unknown as Field);
-      saveJSON(KEYS.fields, fields);
-      return fields;
+      const supabaseFields = data.map((row) => toCamelCase(row) as unknown as Field);
+      // Merge with localStorage to preserve subFields if Supabase doesn't have them
+      const localFields = loadJSON<Field[]>(KEYS.fields) || [];
+      const merged = supabaseFields.map((sf) => {
+        const local = localFields.find((lf) => lf.id === sf.id);
+        // Preserve subFields from localStorage if Supabase doesn't have them
+        if (local?.subFields && !sf.subFields) {
+          return { ...sf, subFields: local.subFields };
+        }
+        return sf;
+      });
+      saveJSON(KEYS.fields, merged);
+      return merged;
     }
     // Supabase empty — don't overwrite localStorage
     return loadJSON<Field[]>(KEYS.fields) || [];
