@@ -273,6 +273,33 @@ export async function deleteField(id: string): Promise<void> {
   }
 }
 
+/**
+ * Force sync all local fields to Supabase.
+ * Use after schema migrations to push data that wasn't syncing before.
+ */
+export async function syncAllFieldsToSupabase(): Promise<{ success: boolean; count: number; error?: string }> {
+  if (!supabaseConfigured) {
+    return { success: false, count: 0, error: 'Supabase not configured' };
+  }
+  const fields = loadJSON<Field[]>(KEYS.fields) || [];
+  if (fields.length === 0) {
+    return { success: true, count: 0 };
+  }
+  try {
+    const rows = fields.map((f) => toSnakeCase(f as any));
+    const { error } = await supabase.from('fields').upsert(rows);
+    if (error) {
+      console.error('Supabase fields sync error:', error.message);
+      return { success: false, count: 0, error: error.message };
+    }
+    return { success: true, count: fields.length };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Network error';
+    console.error('Supabase fields network error:', msg);
+    return { success: false, count: 0, error: msg };
+  }
+}
+
 // --- Calculator Defaults ---
 export async function getCalculatorDefaults(): Promise<CalculatorDefaults> {
   if (!supabaseConfigured) {

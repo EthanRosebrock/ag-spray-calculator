@@ -11,11 +11,13 @@ import {
   toggleContainerAvailability,
   resetContainers,
   saveContainer,
+  syncAllFieldsToSupabase,
 } from '../../utils/storageService';
 import ProductModal from './ProductModal';
 import ContainerModal from './ContainerModal';
+import { supabaseConfigured } from '../../utils/supabaseClient';
 
-type Tab = 'location' | 'products' | 'containers';
+type Tab = 'location' | 'products' | 'containers' | 'sync';
 
 const SettingsPage: React.FC = () => {
   const [tab, setTab] = useState<Tab>('location');
@@ -24,6 +26,7 @@ const SettingsPage: React.FC = () => {
     { key: 'location', label: 'Farm Location' },
     { key: 'products', label: 'Products' },
     { key: 'containers', label: 'Containers' },
+    { key: 'sync', label: 'Data Sync' },
   ];
 
   return (
@@ -48,6 +51,7 @@ const SettingsPage: React.FC = () => {
       {tab === 'location' && <LocationTab />}
       {tab === 'products' && <ProductsTab />}
       {tab === 'containers' && <ContainersTab />}
+      {tab === 'sync' && <DataSyncTab />}
     </div>
   );
 };
@@ -406,6 +410,78 @@ const ContainersTab: React.FC = () => {
           }}
         />
       )}
+    </div>
+  );
+};
+
+// --- Data Sync Tab ---
+const DataSyncTab: React.FC = () => {
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle');
+  const [syncMessage, setSyncMessage] = useState('');
+
+  const handleSyncFields = async () => {
+    setSyncStatus('syncing');
+    setSyncMessage('');
+
+    const result = await syncAllFieldsToSupabase();
+
+    if (result.success) {
+      setSyncStatus('success');
+      setSyncMessage(`Synced ${result.count} field${result.count === 1 ? '' : 's'} to cloud`);
+      setTimeout(() => setSyncStatus('idle'), 3000);
+    } else {
+      setSyncStatus('error');
+      setSyncMessage(result.error || 'Sync failed');
+      setTimeout(() => setSyncStatus('idle'), 5000);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="card">
+        <h2 className="text-xl font-semibold mb-4">Cloud Sync</h2>
+
+        {!supabaseConfigured ? (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <p className="text-sm text-yellow-800">
+              Cloud sync is not configured. Data is stored locally only.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              Force sync all field data (including sub-fields) from this device to the cloud.
+              Use this if fields or sub-fields are not appearing on other devices.
+            </p>
+
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleSyncFields}
+                disabled={syncStatus === 'syncing'}
+                className="btn-primary text-sm py-2 px-4"
+              >
+                {syncStatus === 'syncing' ? 'Syncing...' : 'Sync Fields to Cloud'}
+              </button>
+
+              {syncStatus === 'success' && (
+                <span className="text-sm text-green-600">{syncMessage}</span>
+              )}
+              {syncStatus === 'error' && (
+                <span className="text-sm text-red-600">{syncMessage}</span>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="card bg-gray-50">
+        <h3 className="font-medium mb-2">How sync works</h3>
+        <ul className="text-sm text-gray-600 space-y-1">
+          <li>Data is saved to this device first, then synced to the cloud</li>
+          <li>Changes made on other devices will appear after refreshing the app</li>
+          <li>If cloud sync fails, data remains safely stored on this device</li>
+        </ul>
+      </div>
     </div>
   );
 };
