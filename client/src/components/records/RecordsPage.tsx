@@ -1,17 +1,19 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { SprayRecord } from '../../types';
-import { getRecords, saveRecord, deleteRecord } from '../../utils/storageService';
+import { SprayRecord, Applicator } from '../../types';
+import { getRecords, saveRecord, deleteRecord, getApplicators } from '../../utils/storageService';
 import RecordModal from './RecordModal';
 import { useCropYear } from '../../App';
 
 const RecordsPage: React.FC = () => {
   const { cropYear } = useCropYear();
   const [records, setRecords] = useState<SprayRecord[]>([]);
+  const [applicators, setApplicators] = useState<Applicator[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [dateFilter, setDateFilter] = useState('');
+  const [filterOperator, setFilterOperator] = useState('');
   const [showAllYears, setShowAllYears] = useState(false);
 
   const reload = async () => {
@@ -22,6 +24,7 @@ const RecordsPage: React.FC = () => {
 
   useEffect(() => {
     reload();
+    getApplicators().then(setApplicators);
   }, []);
 
   // Helper to get record's crop year (from cropYear field or extract from date for legacy)
@@ -30,6 +33,17 @@ const RecordsPage: React.FC = () => {
     // Extract year from date for legacy records
     return r.date.split('-')[0];
   };
+
+  // Build list of operators for the filter dropdown
+  // Combines saved applicators + unique operators from existing records
+  const operatorOptions = useMemo(() => {
+    const fromApplicators = applicators.map((a) => a.name);
+    const fromRecords = records
+      .map((r) => r.operator)
+      .filter((op) => op && op.trim());
+    const uniqueSet = new Set([...fromApplicators, ...fromRecords]);
+    return Array.from(uniqueSet).sort((a, b) => a.localeCompare(b));
+  }, [applicators, records]);
 
   const filtered = useMemo(() => {
     return records.filter((r) => {
@@ -42,16 +56,19 @@ const RecordsPage: React.FC = () => {
         const fieldMatch = r.fieldNames
           ? r.fieldNames.some((n) => n.toLowerCase().includes(term))
           : r.fieldName.toLowerCase().includes(term);
-        if (!fieldMatch && !r.operator.toLowerCase().includes(term)) {
+        if (!fieldMatch) {
           return false;
         }
       }
       if (dateFilter && !r.date.startsWith(dateFilter)) {
         return false;
       }
+      if (filterOperator && r.operator !== filterOperator) {
+        return false;
+      }
       return true;
     });
-  }, [records, searchTerm, dateFilter, cropYear, showAllYears]);
+  }, [records, searchTerm, dateFilter, cropYear, showAllYears, filterOperator]);
 
   const handleSave = async (record: SprayRecord) => {
     await saveRecord(record);
@@ -117,23 +134,33 @@ const RecordsPage: React.FC = () => {
       {/* Filters */}
       {records.length > 0 && (
         <div className="space-y-2">
-          <div className="flex gap-3">
+          <div className="flex gap-3 flex-wrap">
             <input
               type="text"
-              placeholder="Search by field or operator..."
-              className="input-field flex-1"
+              placeholder="Search by field..."
+              className="input-field flex-1 min-w-[200px]"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
+            <select
+              className="input-field w-auto"
+              value={filterOperator}
+              onChange={(e) => setFilterOperator(e.target.value)}
+            >
+              <option value="">All Applicators</option>
+              {operatorOptions.map((op) => (
+                <option key={op} value={op}>{op}</option>
+              ))}
+            </select>
             <input
               type="month"
               className="input-field w-auto"
               value={dateFilter}
               onChange={(e) => setDateFilter(e.target.value)}
             />
-            {(searchTerm || dateFilter) && (
+            {(searchTerm || dateFilter || filterOperator) && (
               <button
-                onClick={() => { setSearchTerm(''); setDateFilter(''); }}
+                onClick={() => { setSearchTerm(''); setDateFilter(''); setFilterOperator(''); }}
                 className="btn-secondary text-sm py-2 px-3"
               >
                 Clear

@@ -1,4 +1,4 @@
-import { Product, Field, CalculatorDefaults, SprayRecord, TenderRoute, SavedPin } from '../types';
+import { Product, Field, CalculatorDefaults, SprayRecord, TenderRoute, SavedPin, Applicator } from '../types';
 import { ContainerType, DEFAULT_CONTAINERS } from './containerCalculations';
 import { supabase, supabaseConfigured } from './supabaseClient';
 import { LocationData } from './weatherService';
@@ -42,6 +42,7 @@ const KEYS = {
   pins: 'agrispray_pins',
   farmLocation: 'farmLocation',
   cropYear: 'agrispray_crop_year',
+  applicators: 'agrispray_applicators',
 };
 
 function loadJSON<T>(key: string): T | null {
@@ -593,6 +594,53 @@ export function getCropYear(): string {
 
 export function saveCropYear(year: string): void {
   saveJSON(KEYS.cropYear, year);
+}
+
+// --- Applicators ---
+export async function getApplicators(): Promise<Applicator[]> {
+  if (!supabaseConfigured) {
+    return loadJSON<Applicator[]>(KEYS.applicators) || [];
+  }
+  try {
+    const { data, error } = await supabase.from('applicators').select('*');
+    if (error || !data) {
+      return loadJSON<Applicator[]>(KEYS.applicators) || [];
+    }
+    if (data.length > 0) {
+      const applicators = data.map((row) => toCamelCase(row) as unknown as Applicator);
+      saveJSON(KEYS.applicators, applicators);
+      return applicators;
+    }
+    return loadJSON<Applicator[]>(KEYS.applicators) || [];
+  } catch {
+    return loadJSON<Applicator[]>(KEYS.applicators) || [];
+  }
+}
+
+export async function saveApplicator(applicator: Applicator): Promise<void> {
+  const cached = loadJSON<Applicator[]>(KEYS.applicators) || [];
+  const idx = cached.findIndex((a) => a.id === applicator.id);
+  if (idx >= 0) cached[idx] = applicator;
+  else cached.push(applicator);
+  saveJSON(KEYS.applicators, cached);
+  if (supabaseConfigured) {
+    const row = toSnakeCase(applicator as any);
+    supabase.from('applicators').upsert(row).then(
+      ({ error }) => { if (error) console.error('Supabase applicators sync error:', error.message); },
+      (err) => console.error('Supabase applicators network error:', err)
+    );
+  }
+}
+
+export async function deleteApplicator(id: string): Promise<void> {
+  const cached = (loadJSON<Applicator[]>(KEYS.applicators) || []).filter((a) => a.id !== id);
+  saveJSON(KEYS.applicators, cached);
+  if (supabaseConfigured) {
+    supabase.from('applicators').delete().eq('id', id).then(
+      ({ error }) => { if (error) console.error('Supabase applicators delete error:', error.message); },
+      (err) => console.error('Supabase applicators network error:', err)
+    );
+  }
 }
 
 // --- One-time localStorage → Supabase migration ---

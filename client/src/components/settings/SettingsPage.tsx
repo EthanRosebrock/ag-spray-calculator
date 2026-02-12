@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Product } from '../../types';
+import { Product, Applicator } from '../../types';
 import { ContainerType } from '../../utils/containerCalculations';
 import { LocationWeatherService, LocationData, getCurrentPosition, geocodeAddress } from '../../utils/weatherService';
 import {
@@ -12,12 +12,15 @@ import {
   resetContainers,
   saveContainer,
   syncAllFieldsToSupabase,
+  getApplicators,
+  saveApplicator,
+  deleteApplicator,
 } from '../../utils/storageService';
 import ProductModal from './ProductModal';
 import ContainerModal from './ContainerModal';
 import { supabaseConfigured } from '../../utils/supabaseClient';
 
-type Tab = 'location' | 'products' | 'containers' | 'sync';
+type Tab = 'location' | 'products' | 'containers' | 'applicators' | 'sync';
 
 const SettingsPage: React.FC = () => {
   const [tab, setTab] = useState<Tab>('location');
@@ -26,6 +29,7 @@ const SettingsPage: React.FC = () => {
     { key: 'location', label: 'Farm Location' },
     { key: 'products', label: 'Products' },
     { key: 'containers', label: 'Containers' },
+    { key: 'applicators', label: 'Applicators' },
     { key: 'sync', label: 'Data Sync' },
   ];
 
@@ -51,6 +55,7 @@ const SettingsPage: React.FC = () => {
       {tab === 'location' && <LocationTab />}
       {tab === 'products' && <ProductsTab />}
       {tab === 'containers' && <ContainersTab />}
+      {tab === 'applicators' && <ApplicatorsTab />}
       {tab === 'sync' && <DataSyncTab />}
     </div>
   );
@@ -410,6 +415,160 @@ const ContainersTab: React.FC = () => {
           }}
         />
       )}
+    </div>
+  );
+};
+
+// --- Applicators Tab ---
+const ApplicatorsTab: React.FC = () => {
+  const [applicators, setApplicators] = useState<Applicator[]>([]);
+  const [newName, setNewName] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+
+  const reload = async () => {
+    const list = await getApplicators();
+    setApplicators(list);
+  };
+
+  useEffect(() => { reload(); }, []);
+
+  const handleAdd = async () => {
+    const trimmed = newName.trim();
+    if (!trimmed) return;
+    const applicator: Applicator = {
+      id: Date.now().toString(),
+      name: trimmed,
+    };
+    await saveApplicator(applicator);
+    setNewName('');
+    reload();
+  };
+
+  const handleAddKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleAdd();
+    }
+  };
+
+  const startEdit = (applicator: Applicator) => {
+    setEditingId(applicator.id);
+    setEditName(applicator.name);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditName('');
+  };
+
+  const handleSaveEdit = async (applicator: Applicator) => {
+    const trimmed = editName.trim();
+    if (!trimmed) return;
+    await saveApplicator({ ...applicator, name: trimmed });
+    setEditingId(null);
+    setEditName('');
+    reload();
+  };
+
+  const handleEditKeyDown = (e: React.KeyboardEvent, applicator: Applicator) => {
+    if (e.key === 'Enter') {
+      handleSaveEdit(applicator);
+    } else if (e.key === 'Escape') {
+      cancelEdit();
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    await deleteApplicator(id);
+    reload();
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <h2 className="text-xl font-semibold">Applicators</h2>
+      </div>
+
+      <div className="card">
+        <p className="text-sm text-gray-600 mb-4">
+          Manage the list of people who apply sprays. These will appear as options when creating spray records.
+        </p>
+
+        {/* Add new applicator */}
+        <div className="flex gap-2 mb-4">
+          <input
+            type="text"
+            className="input-field flex-1"
+            placeholder="Add applicator name..."
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            onKeyDown={handleAddKeyDown}
+          />
+          <button
+            onClick={handleAdd}
+            disabled={!newName.trim()}
+            className="btn-primary text-sm py-2 px-4"
+          >
+            + Add
+          </button>
+        </div>
+
+        {/* List of applicators */}
+        {applicators.length === 0 ? (
+          <p className="text-sm text-gray-400">No applicators added yet.</p>
+        ) : (
+          <div className="space-y-2">
+            {applicators.map((a) => (
+              <div key={a.id} className="flex items-center justify-between bg-gray-50 p-3 rounded">
+                {editingId === a.id ? (
+                  <div className="flex-1 flex gap-2">
+                    <input
+                      type="text"
+                      className="input-field flex-1 py-1"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      onKeyDown={(e) => handleEditKeyDown(e, a)}
+                      autoFocus
+                    />
+                    <button
+                      onClick={() => handleSaveEdit(a)}
+                      className="text-sm text-ag-green-600 hover:text-ag-green-800 font-medium"
+                    >
+                      Save
+                    </button>
+                    <button
+                      onClick={cancelEdit}
+                      className="text-sm text-gray-500 hover:text-gray-700"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <span className="font-medium">{a.name}</span>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => startEdit(a)}
+                        className="text-sm text-blue-600 hover:text-blue-800"
+                      >
+                        Edit
+                      </button>
+                      {!a.isDefault && (
+                        <button
+                          onClick={() => handleDelete(a.id)}
+                          className="text-sm text-red-500 hover:text-red-700"
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

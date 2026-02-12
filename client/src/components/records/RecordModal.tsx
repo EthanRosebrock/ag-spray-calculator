@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { SprayRecord, SprayRecordProduct, SprayedField, Field } from '../../types';
-import { getFields } from '../../utils/storageService';
+import { SprayRecord, SprayRecordProduct, SprayedField, Field, Applicator } from '../../types';
+import { getFields, getApplicators } from '../../utils/storageService';
 import { useCropYear } from '../../App';
 
 // Field selection with partial acre support
@@ -20,6 +20,7 @@ interface RecordModalProps {
 const RecordModal: React.FC<RecordModalProps> = ({ prefill, onSave, onClose }) => {
   const { cropYear } = useCropYear();
   const [fields, setFields] = useState<Field[]>([]);
+  const [applicators, setApplicators] = useState<Applicator[]>([]);
   const [date, setDate] = useState(prefill?.date || new Date().toISOString().split('T')[0]);
 
   // Initialize field selections from prefill sprayedFields or fallback to legacy fieldIds
@@ -50,6 +51,7 @@ const RecordModal: React.FC<RecordModalProps> = ({ prefill, onSave, onClose }) =
   );
   const [fieldSearch, setFieldSearch] = useState('');
   const [operator, setOperator] = useState(prefill?.operator || '');
+  const [operatorMode, setOperatorMode] = useState<'select' | 'other'>('select');
   const [tankSize, setTankSize] = useState(prefill?.tankSize || 300);
   const [carrierRate, setCarrierRate] = useState(prefill?.carrierRate || 20);
   const [acres, setAcres] = useState(prefill?.acres || 0);
@@ -72,7 +74,17 @@ const RecordModal: React.FC<RecordModalProps> = ({ prefill, onSave, onClose }) =
         );
       }
     });
-  }, [prefill?.fieldIds, prefill?.fieldId, prefill?.sprayedFields]);
+    getApplicators().then((loadedApplicators) => {
+      setApplicators(loadedApplicators);
+      // If prefill has an operator that's not in the list, switch to "other" mode
+      if (prefill?.operator) {
+        const exists = loadedApplicators.some((a) => a.name === prefill.operator);
+        if (!exists && prefill.operator.trim()) {
+          setOperatorMode('other');
+        }
+      }
+    });
+  }, [prefill?.fieldIds, prefill?.fieldId, prefill?.sprayedFields, prefill?.operator]);
 
   // Get selectable items - either sub-fields (for current crop year) or parent fields
   const getSelectableItems = () => {
@@ -260,12 +272,46 @@ const RecordModal: React.FC<RecordModalProps> = ({ prefill, onSave, onClose }) =
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Operator</label>
-              <input
-                type="text"
-                className="input-field"
-                value={operator}
-                onChange={(e) => setOperator(e.target.value)}
-              />
+              {applicators.length > 0 ? (
+                <div className="space-y-2">
+                  <select
+                    className="input-field"
+                    value={operatorMode === 'other' ? '__other__' : operator}
+                    onChange={(e) => {
+                      if (e.target.value === '__other__') {
+                        setOperatorMode('other');
+                        setOperator('');
+                      } else {
+                        setOperatorMode('select');
+                        setOperator(e.target.value);
+                      }
+                    }}
+                  >
+                    <option value="">Select applicator...</option>
+                    {applicators.map((a) => (
+                      <option key={a.id} value={a.name}>{a.name}</option>
+                    ))}
+                    <option value="__other__">Other...</option>
+                  </select>
+                  {operatorMode === 'other' && (
+                    <input
+                      type="text"
+                      className="input-field"
+                      placeholder="Enter operator name"
+                      value={operator}
+                      onChange={(e) => setOperator(e.target.value)}
+                      autoFocus
+                    />
+                  )}
+                </div>
+              ) : (
+                <input
+                  type="text"
+                  className="input-field"
+                  value={operator}
+                  onChange={(e) => setOperator(e.target.value)}
+                />
+              )}
             </div>
           </div>
 

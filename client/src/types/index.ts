@@ -162,3 +162,10 @@ export interface SubField {
   crop: string;        // Crop for this section
   cropYear: string;    // Which year this applies to
 }
+
+// --- Applicators ---
+export interface Applicator {
+  id: string;
+  name: string;
+  isDefault?: boolean;  // prevent deletion of default entry
+}
