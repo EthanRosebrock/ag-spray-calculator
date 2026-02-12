@@ -230,7 +230,7 @@ const RecordModal: React.FC<RecordModalProps> = ({ prefill, onSave, onClose }) =
     if (!displayName || !date) return;
 
     const record: SprayRecord = {
-      id: Date.now().toString(),
+      id: prefill?.id || Date.now().toString(),
       date,
       fieldId: selectedFieldIds.length === 1 ? selectedFieldIds[0] : undefined,
       fieldName: displayName,
@@ -244,7 +244,7 @@ const RecordModal: React.FC<RecordModalProps> = ({ prefill, onSave, onClose }) =
       totalVolume: prefill?.totalVolume || carrierRate * acres,
       weather: prefill?.weather,
       notes: notes || undefined,
-      createdAt: new Date().toISOString(),
+      createdAt: prefill?.createdAt || new Date().toISOString(),
       sprayedFields: sprayedFields.length > 0 ? sprayedFields : undefined,
       cropYear: prefill?.cropYear || cropYear,
     };
@@ -256,7 +256,7 @@ const RecordModal: React.FC<RecordModalProps> = ({ prefill, onSave, onClose }) =
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
         <h2 className="text-xl font-semibold mb-4">
-          {prefill ? 'Save Spray Record' : 'Add Spray Record'}
+          {prefill?.id ? 'Edit Spray Record' : prefill ? 'Save Spray Record' : 'Add Spray Record'}
         </h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">

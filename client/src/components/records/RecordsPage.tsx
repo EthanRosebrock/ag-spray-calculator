@@ -9,6 +9,7 @@ const RecordsPage: React.FC = () => {
   const [records, setRecords] = useState<SprayRecord[]>([]);
   const [applicators, setApplicators] = useState<Applicator[]>([]);
   const [showModal, setShowModal] = useState(false);
+  const [editingRecord, setEditingRecord] = useState<SprayRecord | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -74,6 +75,7 @@ const RecordsPage: React.FC = () => {
     await saveRecord(record);
     await reload();
     setShowModal(false);
+    setEditingRecord(null);
   };
 
   const handleDelete = async (id: string) => {
@@ -230,15 +232,27 @@ const RecordsPage: React.FC = () => {
                       </button>
                     </div>
                   ) : (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDeleteConfirm(record.id);
-                      }}
-                      className="text-sm text-red-500 hover:text-red-700"
-                    >
-                      Delete
-                    </button>
+                    <>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingRecord(record);
+                          setShowModal(true);
+                        }}
+                        className="text-sm text-blue-600 hover:text-blue-800"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteConfirm(record.id);
+                        }}
+                        className="text-sm text-red-500 hover:text-red-700"
+                      >
+                        Delete
+                      </button>
+                    </>
                   )}
                   <span className="text-gray-400">
                     {expandedId === record.id ? '\u25B2' : '\u25BC'}
@@ -335,8 +349,12 @@ const RecordsPage: React.FC = () => {
 
       {showModal && (
         <RecordModal
+          prefill={editingRecord || undefined}
           onSave={handleSave}
-          onClose={() => setShowModal(false)}
+          onClose={() => {
+            setShowModal(false);
+            setEditingRecord(null);
+          }}
         />
       )}
     </div>
